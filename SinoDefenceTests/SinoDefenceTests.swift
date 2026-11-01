@@ -235,6 +235,8 @@ enum Fixtures {
     <body>
     <form action="/t/cv-18-fujian-003-catobar-carrier-thread.8048/add-reply" method="post" class="block">
         <input type="hidden" name="_xfToken" value="1793510000,xyz">
+        <input type="hidden" name="attachment_hash" value="attachhash123">
+        <a class="button js-attachmentUpload" href="/attachments/upload?type=post&amp;context[thread_id]=8048&amp;hash=attachhash123">Attach files</a>
         <textarea name="message_html" class="input js-editor"></textarea>
         <noscript><textarea name="message"></textarea></noscript>
         <button type="submit">Post reply</button>
@@ -403,6 +405,9 @@ struct PostingFormTests {
         #expect(form?.topicID == 8048)
         #expect(form?.messageField == "message_html")
         #expect(form?.csrfToken == "1793510000,xyz")
+        #expect(form?.attachmentHash == "attachhash123")
+        #expect(form?.attachmentUploadURL?.absoluteString.contains("/attachments/upload") == true)
+        #expect(form?.attachmentUploadURL?.absoluteString.contains("thread_id") == true)
     }
 
     @Test func parsesXenForo23NewThreadForm() {
@@ -479,6 +484,8 @@ struct ContentRenderingTests {
         #expect(String(scaled.characters).contains("Hello world"))
     }
 }
+
+
 
 
 

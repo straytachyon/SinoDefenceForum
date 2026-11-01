@@ -272,4 +272,13 @@ struct PostFormInfo: Sendable {
     var boardID: Int?
     var topicID: Int?
     var csrfToken: String?
+    var attachmentUploadURL: URL? = nil
+    var attachmentHash: String? = nil
+}
+
+struct UploadedAttachment: Sendable, Equatable {
+    var id: Int
+    var filename: String
+    var thumbnailURL: URL?
+    var link: URL?
 }

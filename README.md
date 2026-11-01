@@ -32,6 +32,10 @@ tokens stay between the app and the forum.
   YouTube, size, colour, alignment, spoiler, table, super/subscript and smileys)
   and converts the draft to the HTML that XenForo's editor accepts. A local
   preview renders the result through the same native post renderer.
+- **Attachments** — attach photos from the Photos library or files from Files
+  to new threads and replies. Uploads use XenForo's attachment manager/hash, show
+  per-file progress and can be removed before posting (which deletes the uploaded
+  attachment server-side). Files are capped at 50 MB in the app.
 - **Moderator tools** — when the signed-in account has moderator permission,
   thread pages expose Stick/Unstick, Lock/Unlock, Move and Delete actions, and every
   post gets a moderator menu with Delete Post, including an optional reason for
@@ -147,8 +151,8 @@ photo instead of leaving a blank line.
 - **Unofficial.** Not affiliated with the forum or its operators. Respect the
   forum's rules and rate limits.
 - Posting supports text, quotes, links, images by URL, formatting, lists,
-  spoilers and YouTube; file uploads, polls and advanced attachment management
-  still use the web view.
+  spoilers, YouTube and file/photo attachments; polls and advanced attachment
+  management still use the web view.
 - Search, alerts, conversations, profile editing and account settings are
   available through "Open in Browser".
 - Parsing follows XenForo 2.3's stock public templates. A custom theme or a

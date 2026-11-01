@@ -304,6 +304,123 @@ actor XFClient {
         return .posted(topicID: topicID, messageID: XFParser.postID(fromRedirect: finalURL))
     }
 
+    // MARK: - Attachments
+
+    func uploadAttachment(
+        form: PostFormInfo,
+        filename: String,
+        mimeType: String,
+        data: Data
+    ) async throws -> UploadedAttachment {
+        guard let uploadURL = form.attachmentUploadURL else {
+            throw XFError.postFailed("This editor did not expose an attachment upload endpoint.")
+        }
+        let token = form.csrfToken ?? form.fields["_xfToken"] ?? ""
+        guard !token.isEmpty else {
+            throw XFError.notLoggedIn
+        }
+
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var body = Data()
+        body.appendUTF8("--\(boundary)\r\n")
+        let safeName = filename
+            .replacingOccurrences(of: "\"", with: "")
+            .replacingOccurrences(of: "\r", with: "")
+            .replacingOccurrences(of: "\n", with: "")
+        body.appendUTF8("Content-Disposition: form-data; name=\"upload\"; filename=\"\(safeName)\"\r\n")
+        body.appendUTF8("Content-Type: \(mimeType)\r\n\r\n")
+        body.append(data)
+        body.appendUTF8("\r\n--\(boundary)--\r\n")
+
+        guard let requestURL = Self.attachmentURL(uploadURL, token: token) else {
+            throw XFError.postFailed("The attachment upload URL could not be built.")
+        }
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(form.action.absoluteString, forHTTPHeaderField: "Referer")
+        request.httpBody = body
+
+        let (responseData, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw XFError.network("no HTTP response")
+        }
+        let text = Self.decode(responseData, response: http)
+
+        guard let json = Self.jsonObject(text) else {
+            if http.statusCode == 403 { throw XFError.notLoggedIn }
+            throw XFError.postFailed("The forum returned an unexpected attachment response.")
+        }
+        if let status = json["status"] as? String, status == "error" {
+            let errors = json["errors"] as? [String] ?? []
+            let message = errors.first ?? "The forum rejected the attachment."
+            if message.localizedCaseInsensitiveContains("log") { throw XFError.notLoggedIn }
+            throw XFError.postFailed(message)
+        }
+        guard let attachment = json["attachment"] as? [String: Any],
+              let attachmentID = Self.intValue(attachment["attachment_id"]) else {
+            throw XFError.postFailed("The forum did not return the uploaded attachment.")
+        }
+
+        let thumbnail = (attachment["thumbnail_url"] as? String).flatMap { AppConfig.resolve($0, relativeTo: uploadURL) }
+        let link = (attachment["link"] as? String).flatMap { AppConfig.resolve($0, relativeTo: uploadURL) }
+        return UploadedAttachment(
+            id: attachmentID,
+            filename: attachment["filename"] as? String ?? filename,
+            thumbnailURL: thumbnail,
+            link: link
+        )
+    }
+
+    func deleteAttachment(form: PostFormInfo, attachmentID: Int) async throws {
+        guard let uploadURL = form.attachmentUploadURL else { return }
+        let token = form.csrfToken ?? form.fields["_xfToken"] ?? ""
+        guard !token.isEmpty else { throw XFError.notLoggedIn }
+        guard let requestURL = Self.attachmentURL(uploadURL, token: token) else { return }
+
+        let fields: [String: String] = [
+            "delete": String(attachmentID),
+            "_xfToken": token,
+            "_xfResponseType": "json",
+            "_xfWithData": "1",
+        ]
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue(form.action.absoluteString, forHTTPHeaderField: "Referer")
+        request.httpBody = Self.formEncode(fields).data(using: .utf8)
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { return }
+        let text = Self.decode(data, response: http)
+        if let json = Self.jsonObject(text) {
+            if let status = json["status"] as? String, status == "error" {
+                let errors = json["errors"] as? [String] ?? []
+                throw XFError.postFailed(errors.first ?? "The attachment could not be removed.")
+            }
+            if Self.intValue(json["delete"]) != nil { return }
+        }
+        if http.statusCode == 403 { throw XFError.notLoggedIn }
+    }
+
+    private static func attachmentURL(_ url: URL, token: String) -> URL? {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+        var items = components.queryItems ?? []
+        items.append(URLQueryItem(name: "_xfToken", value: token))
+        items.append(URLQueryItem(name: "_xfResponseType", value: "json"))
+        items.append(URLQueryItem(name: "_xfWithData", value: "1"))
+        components.queryItems = items
+        return components.url
+    }
+
+    private static func intValue(_ value: Any?) -> Int? {
+        if let value = value as? Int { return value }
+        if let value = value as? NSNumber { return value.intValue }
+        if let value = value as? String { return Int(value) }
+        return nil
+    }
+
     // MARK: - Moderation
 
     /// XenForo performs the quick thread actions through its inline moderation
@@ -589,4 +706,11 @@ actor XFClient {
 enum PostOutcome: Sendable {
     case preview(subject: String, content: PostContent, form: PostFormInfo)
     case posted(topicID: Int?, messageID: Int?)
+}
+
+
+private extension Data {
+    mutating func appendUTF8(_ string: String) {
+        append(Data(string.utf8))
+    }
 }

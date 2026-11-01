@@ -3,6 +3,22 @@ import Observation
 
 /// Drives the new-thread / reply composer: XenForo form tokens, the BBCode
 /// draft, a local preview and final submission as editor HTML.
+struct PendingAttachment: Identifiable, Equatable {
+    enum State: Equatable {
+        case uploading
+        case uploaded
+        case failed
+    }
+
+    let id = UUID()
+    var attachmentID: Int?
+    var filename: String
+    var byteCount: Int
+    var thumbnailURL: URL?
+    var state: State
+    var error: String?
+}
+
 @MainActor
 @Observable
 final class PostComposer {
@@ -21,6 +37,7 @@ final class PostComposer {
     private(set) var isLoading = false
     private(set) var isSubmitting = false
     private(set) var preview: Preview?
+    private(set) var attachments: [PendingAttachment] = []
 
     var subject = ""
     var message = ""
@@ -56,6 +73,75 @@ final class PostComposer {
             && !isSubmitting
             && !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && (!isNewTopic || !subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            && attachments.allSatisfy { $0.state == .uploaded }
+    }
+
+    var isUploadingAttachments: Bool {
+        attachments.contains { $0.state == .uploading }
+    }
+
+    func uploadAttachment(filename: String, mimeType: String, data: Data, session: Session) async {
+        guard let form else {
+            errorMessage = "The editor is still loading. Try attaching again in a moment."
+            return
+        }
+        guard data.count <= 50 * 1024 * 1024 else {
+            errorMessage = "Attachments are limited to 50 MB in the app."
+            return
+        }
+        guard !filename.isEmpty else { return }
+
+        let pending = PendingAttachment(
+            attachmentID: nil,
+            filename: filename,
+            byteCount: data.count,
+            thumbnailURL: nil,
+            state: .uploading,
+            error: nil
+        )
+        attachments.append(pending)
+        errorMessage = nil
+
+        do {
+            let uploaded = try await client.uploadAttachment(
+                form: form,
+                filename: filename,
+                mimeType: mimeType,
+                data: data
+            )
+            if let index = attachments.firstIndex(where: { $0.id == pending.id }) {
+                attachments[index].attachmentID = uploaded.id
+                attachments[index].filename = uploaded.filename
+                attachments[index].thumbnailURL = uploaded.thumbnailURL
+                attachments[index].state = .uploaded
+            }
+        } catch XFError.notLoggedIn {
+            markFailed(pending.id, message: "Your forum session expired. Please sign in again.")
+            session.sessionExpired()
+        } catch {
+            markFailed(pending.id, message: error.localizedDescription)
+        }
+    }
+
+    func removeAttachment(_ attachment: PendingAttachment) async {
+        guard attachment.state != .uploading else { return }
+        if attachment.state == .uploaded, let form, let id = attachment.attachmentID {
+            do {
+                try await client.deleteAttachment(form: form, attachmentID: id)
+            } catch {
+                errorMessage = error.localizedDescription
+                return
+            }
+        }
+        attachments.removeAll { $0.id == attachment.id }
+    }
+
+    private func markFailed(_ id: UUID, message: String) {
+        if let index = attachments.firstIndex(where: { $0.id == id }) {
+            attachments[index].state = .failed
+            attachments[index].error = message
+        }
+        errorMessage = message
     }
 
     func load(session: Session) async {

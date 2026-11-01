@@ -517,6 +517,11 @@ enum XFParser {
         let message = messageTextarea?.rawText ?? ""
         let messageField = messageTextarea?.attr("name") ?? "message"
 
+        let uploadAnchor = form.all(where: {
+            $0.tag == "a" && $0.hasClass("js-attachmentUpload")
+        }).first
+        let attachmentUploadURL = uploadAnchor?.href.flatMap { AppConfig.resolve($0, relativeTo: actionURL) }
+
         let actionString = actionURL.absoluteString
         let boardID = capture("/forums/(\\d+)/", in: actionString).flatMap { Int($0[1]) }
             ?? capture("/forums/[^/]*?[.-](\\d+)/", in: actionString).flatMap { Int($0[1]) }
@@ -535,7 +540,9 @@ enum XFParser {
             messageField: messageField,
             boardID: boardID,
             topicID: topicID,
-            csrfToken: fields["_xfToken"] ?? csrf(in: document)
+            csrfToken: fields["_xfToken"] ?? csrf(in: document),
+            attachmentUploadURL: attachmentUploadURL,
+            attachmentHash: fields["attachment_hash"]
         )
     }
 

@@ -1,4 +1,6 @@
+import PhotosUI
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// New thread / reply composer with XenForo-style BBCode tools, a native
 /// preview and submission through the forum's editor form.
@@ -22,6 +24,10 @@ struct ComposeView: View {
 
     @State private var showYouTubeDialog = false
     @State private var youtubeURL = ""
+
+    @State private var showFileImporter = false
+    @State private var showPhotoPicker = false
+    @State private var photoItem: PhotosPickerItem?
 
     init(mode: PostComposer.Mode, onPosted: @escaping (PostOutcome) -> Void = { _ in }) {
         self.mode = mode
@@ -113,6 +119,21 @@ struct ComposeView: View {
             } message: {
                 Text("Paste the image URL. Forum attachments need to be uploaded in a browser.")
             }
+            .fileImporter(
+                isPresented: $showFileImporter,
+                allowedContentTypes: [.item],
+                allowsMultipleSelection: false
+            ) { result in
+                handleFileImport(result)
+            }
+            .photosPicker(
+                isPresented: $showPhotoPicker,
+                selection: $photoItem,
+                matching: .images
+            )
+            .onChange(of: photoItem) { _, item in
+                handlePhoto(item)
+            }
         }
     }
 
@@ -182,6 +203,23 @@ struct ComposeView: View {
                     .disabled(model.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isSubmitting)
                 }
 
+                if !model.attachments.isEmpty {
+                    VStack(spacing: 0) {
+                        ForEach(model.attachments) { attachment in
+                            AttachmentRow(attachment: attachment) {
+                                Task { await model.removeAttachment(attachment) }
+                            }
+                            if attachment.id != model.attachments.last?.id {
+                                Divider()
+                            }
+                        }
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color(.secondarySystemGroupedBackground))
+                    )
+                }
+
                 if let error = model.errorMessage {
                     Text(error)
                         .font(.footnote)
@@ -215,6 +253,24 @@ struct ComposeView: View {
                 formatButton("link", "Insert link") { showLinkDialog = true }
                 formatButton("photo", "Insert image") { showImageDialog = true }
                 formatButton("play.rectangle", "Insert YouTube video") { showYouTubeDialog = true }
+
+                Menu {
+                    Button {
+                        showPhotoPicker = true
+                    } label: {
+                        Label("Photo Library", systemImage: "photo.on.rectangle")
+                    }
+                    Button {
+                        showFileImporter = true
+                    } label: {
+                        Label("Choose File", systemImage: "folder")
+                    }
+                } label: {
+                    Image(systemName: "paperclip")
+                        .frame(width: 30, height: 30)
+                }
+                .disabled(model.form == nil || model.isSubmitting)
+                .accessibilityLabel("Attach files")
 
                 Menu {
                     ForEach(["8pt", "10pt", "12pt", "14pt", "18pt", "24pt"], id: \.self) { size in
@@ -325,6 +381,62 @@ struct ComposeView: View {
         imageURL = ""
     }
 
+    private func handleFileImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            let scoped = url.startAccessingSecurityScopedResource()
+            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            guard size <= 50 * 1024 * 1024 else {
+                model.errorMessage = "Attachments are limited to 50 MB in the app."
+                if scoped { url.stopAccessingSecurityScopedResource() }
+                return
+            }
+            Task {
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                do {
+                    let data = try await Task.detached { try Data(contentsOf: url) }.value
+                    let mime = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType
+                        ?? "application/octet-stream"
+                    await model.uploadAttachment(
+                        filename: url.lastPathComponent,
+                        mimeType: mime,
+                        data: data,
+                        session: session
+                    )
+                } catch {
+                    model.errorMessage = error.localizedDescription
+                }
+            }
+        case .failure(let error):
+            model.errorMessage = error.localizedDescription
+        }
+    }
+
+    private func handlePhoto(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        Task {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else {
+                    model.errorMessage = "That photo could not be read."
+                    return
+                }
+                let type = item.supportedContentTypes.first
+                let ext = type?.preferredFilenameExtension ?? "jpg"
+                let mime = type?.preferredMIMEType ?? "image/jpeg"
+                await model.uploadAttachment(
+                    filename: "photo-\(Int(Date().timeIntervalSince1970)).\(ext)",
+                    mimeType: mime,
+                    data: data,
+                    session: session
+                )
+            } catch {
+                model.errorMessage = error.localizedDescription
+            }
+            photoItem = nil
+        }
+    }
+
     private func post() async {
         guard let outcome = await model.submit(session: session) else { return }
         onPosted(outcome)
@@ -332,7 +444,65 @@ struct ComposeView: View {
     }
 }
 
-private struct PreviewSheet: View {
+private struct AttachmentRow: View {
+    let attachment: PendingAttachment
+    var onRemove: () -> Void
+
+    private var sizeText: String {
+        ByteCountFormatter.string(fromByteCount: Int64(attachment.byteCount), countStyle: .file)
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Group {
+                switch attachment.state {
+                case .uploading:
+                    ProgressView()
+                        .controlSize(.small)
+                case .uploaded:
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                case .failed:
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                }
+            }
+            .frame(width: 22)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(attachment.filename)
+                    .font(.subheadline)
+                    .lineLimit(1)
+                if let error = attachment.error {
+                    Text(error)
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                        .lineLimit(2)
+                } else {
+                    Text(attachment.state == .uploading ? "Uploading… · \(sizeText)" : sizeText)
+                        .font(.caption2)
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
+            }
+
+            Spacer(minLength: 4)
+
+            if attachment.state != .uploading {
+                Button(action: onRemove) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove attachment")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+    }
+}
+
+struct PreviewSheet: View {
     let subject: String
     let content: PostContent
     @Environment(\.dismiss) private var dismiss
