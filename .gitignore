@@ -1,0 +1,11 @@
+# Xcode
+.DS_Store
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+
+# Local secrets (never commit)
+.env
+*.p12
+*.mobileprovision
