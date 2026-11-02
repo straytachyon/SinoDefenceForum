@@ -1,6 +1,6 @@
 # Sino Defence Forum — iOS client
 
-Repository: <https://github.com/straytachyon/SinoDefenseForum>
+Repository: <https://github.com/straytachyon/SinoDefenceForum>
 
 A native SwiftUI client for **Sino Defence Forum** at
 `https://www.sinodefenceforum.com/` (XenForo 2.3).
