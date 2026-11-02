@@ -260,6 +260,11 @@ struct ReactionResult: Sendable {
     var state: ReactionBarState?
 }
 
+struct ResolvedThread: Sendable {
+    var topic: ForumTopic
+    var targetPostID: Int?
+}
+
 struct TopicPage: Sendable {
     var topicID: Int
     var title: String

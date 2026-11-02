@@ -35,6 +35,9 @@ tokens stay between the app and the forum.
 - **Fresh listings** — forum/topic HTML bypasses URLSession's cache, retries a
   stale 304 with a cache-buster, and the toolbar has an explicit refresh button
   in addition to pull-to-refresh.
+- **Notifications** — the bell opens a native XenForo alert list. Tapping an alert
+  marks it read and opens the referenced post inside the app; the toolbar can
+  mark all alerts read.
 - **Posting** — reply to a thread or start a new one. Replies do not prompt for
   a subject; only new threads do. The editor keeps a
   forum-style BBCode toolbar (bold, italic, quote, code, lists, links, image,
@@ -162,8 +165,8 @@ photo instead of leaving a blank line.
 - Posting supports text, quotes, links, images by URL, formatting, lists,
   spoilers, YouTube and file/photo attachments; polls and advanced attachment
   management still use the web view.
-- Search, alerts, conversations, profile editing and account settings are
-  available through "Open in Browser".
+- Search, conversations, profile editing and account settings are available
+  through "Open in Browser".
 - Parsing follows XenForo 2.3's stock public templates. A custom theme or a
   XenForo upgrade can require selector updates.
 - Moderator actions require an account with the corresponding permission; the

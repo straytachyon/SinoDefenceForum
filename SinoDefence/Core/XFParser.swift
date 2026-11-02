@@ -715,6 +715,18 @@ enum XFParser {
         return nil
     }
 
+    static func threadID(from url: URL) -> Int? {
+        let text = url.absoluteString
+        if let match = capture("/t/[^/]*?[.-](\\d+)", in: text) { return Int(match[1]) }
+        if let match = capture("/threads/(\\d+)", in: text) { return Int(match[1]) }
+        if let match = capture("[?&]thread_id=(\\d+)", in: text) { return Int(match[1]) }
+        return nil
+    }
+
+    static func threadSlug(fromURL url: URL) -> String {
+        threadSlug(from: url.path)
+    }
+
     static func postID(fromRedirect url: URL) -> Int? {
         if let match = capture("/post-(\\d+)", in: url.absoluteString) {
             return Int(match[1])

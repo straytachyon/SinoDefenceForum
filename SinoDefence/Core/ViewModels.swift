@@ -149,9 +149,11 @@ final class TopicModel {
     private let client = XFClient.shared
     private let opensAtLatest: Bool
     private let opensAtUnread: Bool
+    private let initialPostID: Int?
     private var didLoad = false
 
-    init(topic: ForumTopic) {
+    init(topic: ForumTopic, targetPostID: Int? = nil) {
+        self.initialPostID = targetPostID
         topicID = topic.id
         slug = topic.slug
         title = topic.title
@@ -162,7 +164,11 @@ final class TopicModel {
 
     func loadIfNeeded(session: Session) async {
         guard !didLoad else { return }
-        await fetch(session: session, page: 1, mode: .initial)
+        if let initialPostID {
+            await fetch(session: session, page: 1, mode: .postJump, postID: initialPostID)
+        } else {
+            await fetch(session: session, page: 1, mode: .initial)
+        }
     }
 
     func refresh(session: Session) async {

@@ -13,9 +13,12 @@ enum TabID: Hashable {
 /// NavigationStack with one back button.
 struct MainTabs: View {
     @Environment(Session.self) private var session
+    @Environment(XFAlertsStore.self) private var alerts
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var selection: TabID = .newPosts
     @State private var showSettings = false
+    @State private var showAlerts = false
     @State private var unreadCount = 0
     @AppStorage(TabOrder.defaultsKey) private var tabOrder = ""
 
@@ -35,6 +38,16 @@ struct MainTabs: View {
             }
             .task {
                 await refreshUnreadCount()
+                await alerts.refresh(session: session)
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(90))
+                    guard !Task.isCancelled else { return }
+                    await alerts.refresh(session: session)
+                }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                Task { await alerts.refresh(session: session) }
             }
             .onChange(of: session.phase) { _, phase in
                 if phase == .signedIn {
@@ -110,7 +123,8 @@ private struct ForumsTab: View {
     var onShowSettings: () -> Void
 
     @Environment(Session.self) private var session
-    @State private var showTabOrder = false
+    @Environment(XFAlertsStore.self) private var alerts
+    @State private var showAlerts = false
 
     var body: some View {
         NavigationStack {
@@ -156,11 +170,22 @@ private struct ForumsTab: View {
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
-                        showTabOrder = true
+                        showAlerts = true
                     } label: {
-                        Image(systemName: "arrow.up.arrow.down")
+                        Image(systemName: "bell")
+                            .overlay(alignment: .topTrailing) {
+                                if alerts.unreadCount > 0 {
+                                    Text(alerts.unreadCount > 99 ? "99+" : "\(alerts.unreadCount)")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 4)
+                                        .padding(.vertical, 1)
+                                        .background(Capsule().fill(.red))
+                                        .offset(x: 7, y: -5)
+                                }
+                            }
                     }
-                    .accessibilityLabel("Arrange tabs")
+                    .accessibilityLabel("Notifications")
 
                     Button(action: onShowSettings) {
                         Image(systemName: "gearshape")
@@ -168,10 +193,8 @@ private struct ForumsTab: View {
                     .accessibilityLabel("Settings")
                 }
             }
-            .sheet(isPresented: $showTabOrder) {
-                NavigationStack {
-                    TabOrderEditor()
-                }
+            .sheet(isPresented: $showAlerts) {
+                XFAlertsView()
             }
         }
     }

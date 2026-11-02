@@ -13,6 +13,7 @@ struct SinoDefenceApp: App {
     @State private var session = Session()
     @AppStorage(AppAppearance.defaultsKey) private var appearanceRaw = AppAppearance.system.rawValue
     @State private var settings = AppSettings()
+    @State private var alerts = XFAlertsStore()
 
     var body: some Scene {
         WindowGroup {
@@ -20,6 +21,7 @@ struct SinoDefenceApp: App {
                 .environment(session)
                 .tint(AppTheme.accent)
                 .environment(settings)
+                .environment(alerts)
                 .preferredColorScheme(AppAppearance(rawValue: appearanceRaw)?.colorScheme)
         }
     }

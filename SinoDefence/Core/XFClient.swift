@@ -69,6 +69,56 @@ actor XFClient {
         return XFParser.parseCurrentUser(in: html)
     }
 
+    func fetchAlerts() async throws -> XFAlertsSnapshot {
+        let (html, _) = try await get(AppConfig.url("account/alerts/"))
+        if XFParser.errorMessage(in: html) != nil {
+            throw XFError.notLoggedIn
+        }
+        let items = XFParser.parseAlerts(in: html)
+        var unread = XFParser.parseAlertCount(in: html)
+        if unread == 0 {
+            unread = items.filter(\.isUnread).count
+        }
+        return XFAlertsSnapshot(
+            unread: unread,
+            items: items,
+            markAllReadURL: XFParser.parseAlertMarkAllURL(in: html),
+            csrfToken: XFParser.parseCSRF(in: html)
+        )
+    }
+
+    func markAlertRead(url: URL, csrfToken: String) async throws {
+        try await markAlerts(url: url, csrfToken: csrfToken, fields: ["unread": "0"])
+    }
+
+    func markAllAlertsRead(url: URL, csrfToken: String) async throws {
+        try await markAlerts(url: url, csrfToken: csrfToken, fields: [:])
+    }
+
+    private func markAlerts(url: URL, csrfToken: String, fields: [String: String]) async throws {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
+        var body = fields
+        body["_xfToken"] = csrfToken
+        body["_xfResponseType"] = "json"
+        body["_xfWithData"] = "1"
+        request.httpBody = Self.formEncode(body).data(using: .utf8)
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw XFError.network("no HTTP response")
+        }
+        if http.statusCode == 403 { throw XFError.notLoggedIn }
+        if let json = Self.jsonObject(Self.decode(data, response: http)),
+           let status = json["status"] as? String, status == "error" {
+            let errors = json["errors"] as? [String] ?? []
+            throw XFError.postFailed(errors.first ?? "The notification could not be updated.")
+        }
+    }
+
     func login(username: String, password: String) async throws -> ForumUser {
         newPostsBase = nil
         let (loginHTML, loginURL) = try await get(AppConfig.url("login/"))
@@ -220,6 +270,44 @@ actor XFClient {
     }
 
     // MARK: - Posting
+
+    func resolveThread(from url: URL) async throws -> ResolvedThread {
+        let (html, finalURL) = try await get(url)
+        guard let topicID = XFParser.threadID(from: finalURL) ?? XFParser.threadID(from: url) else {
+            throw XFError.parsing("the notification did not point to a thread")
+        }
+        let slug = XFParser.threadSlug(fromURL: finalURL)
+        let page = XFParser.parseThread(html, topicID: topicID, slug: slug)
+        guard !page.posts.isEmpty else {
+            throw XFError.parsing("the thread had no readable posts")
+        }
+        let first = page.posts.first
+        let last = page.posts.last
+        let topic = ForumTopic(
+            id: topicID,
+            title: page.title,
+            slug: page.slug,
+            author: first?.author ?? "",
+            replyCount: 0,
+            replyText: "",
+            viewCount: 0,
+            viewText: "",
+            lastPostText: last?.dateText ?? "",
+            lastPostDate: last?.date,
+            lastPoster: last?.author ?? "",
+            isUnread: false,
+            isSticky: false,
+            isLocked: page.isLocked,
+            pageCount: page.pageCount,
+            boardID: page.boardID,
+            boardName: page.boardName,
+            boardSlug: page.boardSlug,
+            lastPostID: last?.id,
+            firstUnreadURL: nil
+        )
+        let target = XFParser.postID(fromRedirect: finalURL) ?? XFParser.postID(fromRedirect: url)
+        return ResolvedThread(topic: topic, targetPostID: target)
+    }
 
     func fetchReplyForm(topicID: Int, quotePostID: Int? = nil) async throws -> PostFormInfo {
         var path = "threads/\(topicID)/reply"

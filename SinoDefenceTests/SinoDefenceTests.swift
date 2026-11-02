@@ -477,6 +477,27 @@ struct ContentRenderingTests {
         #expect(urls.first?.absoluteString == pageURL)
     }
 
+    @Test func parsesXenForoAlertControls() {
+        let html = """
+        <html id="XF" data-csrf="123,abc"><body>
+        <div class="alert js-alert is-unread" data-alert-id="9001">
+          <div class="alert-content"><a href="/posts/123/">Demo Member quoted your post</a></div>
+          <time class="u-dt">Today at 10:00</time>
+          <a class="js-alertToggle" href="/account/alert-toggle?alert_id=9001">Mark read</a>
+        </div>
+        <a class="js-alertsMarkRead" href="/account/alerts/mark-read">Mark all read</a>
+        </body></html>
+        """
+        let alerts = XFParser.parseAlerts(in: html)
+        #expect(alerts.count == 1)
+        #expect(alerts[0].id == "9001")
+        #expect(alerts[0].isUnread)
+        #expect(alerts[0].url?.path == "/posts/123")
+        #expect(alerts[0].markReadURL?.path == "/account/alert-toggle")
+        #expect(XFParser.parseAlertMarkAllURL(in: html)?.path == "/account/alerts/mark-read")
+        #expect(XFParser.parseCSRF(in: html) == "123,abc")
+    }
+
     @Test func parsesPostReactionsAndReactionList() {
         let html = """
         <!DOCTYPE html><html id="XF" data-logged-in="true" data-csrf="1,abc"><body>
@@ -570,6 +591,8 @@ struct ContentRenderingTests {
         #expect(String(scaled.characters).contains("Hello world"))
     }
 }
+
+
 
 
 

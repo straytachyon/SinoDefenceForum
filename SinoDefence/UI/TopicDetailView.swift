@@ -23,9 +23,9 @@ struct TopicDetailView: View {
     private let isPhone = UIDevice.current.userInterfaceIdiom == .phone
     private var usesFullWidth: Bool { isPhone || isLandscape }
 
-    init(topic: ForumTopic) {
+    init(topic: ForumTopic, targetPostID: Int? = nil) {
         self.topic = topic
-        _model = State(initialValue: TopicModel(topic: topic))
+        _model = State(initialValue: TopicModel(topic: topic, targetPostID: targetPostID))
     }
 
     private var topicURL: URL {

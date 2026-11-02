@@ -34,9 +34,10 @@ struct TopicListContent: View {
     var onShowSettings: () -> Void
 
     @Environment(Session.self) private var session
+    @Environment(XFAlertsStore.self) private var alerts
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var model = TopicListModel()
-    @State private var showTabOrder = false
+    @State private var showAlerts = false
     @State private var showCompose = false
     @State private var hasAppeared = false
 
@@ -83,11 +84,22 @@ struct TopicListContent: View {
                 .disabled(model.isLoading)
 
                 Button {
-                    showTabOrder = true
+                    showAlerts = true
                 } label: {
-                    Image(systemName: "arrow.up.arrow.down")
+                    Image(systemName: "bell")
+                        .overlay(alignment: .topTrailing) {
+                            if alerts.unreadCount > 0 {
+                                Text(alerts.unreadCount > 99 ? "99+" : "\(alerts.unreadCount)")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .background(Capsule().fill(.red))
+                                    .offset(x: 7, y: -5)
+                            }
+                        }
                 }
-                .accessibilityLabel("Arrange tabs")
+                .accessibilityLabel("Notifications")
 
                 Button(action: onShowSettings) {
                     Image(systemName: "gearshape")
@@ -95,10 +107,8 @@ struct TopicListContent: View {
                 .accessibilityLabel("Settings")
             }
         }
-        .sheet(isPresented: $showTabOrder) {
-            NavigationStack {
-                TabOrderEditor()
-            }
+        .sheet(isPresented: $showAlerts) {
+            XFAlertsView()
         }
         .sheet(isPresented: $showCompose) {
             if case .board(let board) = mode {
