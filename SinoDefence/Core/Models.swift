@@ -163,6 +163,7 @@ enum PostBlock: Hashable, Sendable {
     case code(String)
     case image(URL)
     case video(String)
+    case tweet(String)
 }
 
 struct YouTubeVideo: Identifiable, Hashable, Sendable {

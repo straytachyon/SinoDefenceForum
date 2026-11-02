@@ -529,6 +529,8 @@ struct PreviewSheet: View {
                             CodeBlockView(code: code)
                         case .image(let url):
                             InlinePostImage(url: url)
+                        case .tweet(let id):
+                            TweetEmbedView(statusID: id)
                         case .video(let id):
                             YouTubeEmbedView(videoID: id)
                                 .aspectRatio(16.0 / 9.0, contentMode: .fit)

@@ -45,6 +45,20 @@ enum PostRenderer {
         return nil
     }
 
+    /// Extracts the numeric status id from x.com/twitter.com status URLs.
+    static func tweetID(from url: URL) -> String? {
+        let host = url.host?.lowercased() ?? ""
+        guard host == "x.com" || host.hasSuffix(".x.com")
+            || host == "twitter.com" || host.hasSuffix(".twitter.com") else { return nil }
+        let parts = url.pathComponents.filter { $0 != "/" }
+        if let index = parts.firstIndex(where: { $0 == "status" || $0 == "statuses" }),
+           index + 1 < parts.count {
+            let value = parts[index + 1]
+            return value.allSatisfy(\.isNumber) ? value : nil
+        }
+        return nil
+    }
+
     static func vimeoID(from url: URL) -> String? {
         guard (url.host ?? "").contains("vimeo.com") else { return nil }
         return url.pathComponents.last(where: { $0.allSatisfy(\.isNumber) })
@@ -186,6 +200,24 @@ enum PostRenderer {
         // MARK: Elements
 
         private mutating func blockElement(_ node: HTMLNode) {
+            // XenForo's oEmbed card for X/Twitter.
+            if node.hasClass("bbOembed") {
+                let site = (node.attr("data-media-site-id") ?? "").lowercased()
+                if site == "twitter" || site == "x" {
+                    if let key = node.attr("data-media-key"), key.allSatisfy(\.isNumber) {
+                        appendTweetBlock(key)
+                        return
+                    }
+                    if let anchor = node.first(where: { $0.tag == "a" }),
+                       let href = anchor.href,
+                       let url = AppConfig.resolve(href, relativeTo: baseURL),
+                       let id = PostRenderer.tweetID(from: url) {
+                        appendTweetBlock(id)
+                        return
+                    }
+                }
+            }
+
             // XenForo code card.
             if node.hasClass("bbCodeBlock--code") || node.hasClass("bbCodeCode") || node.hasClass("bbc_code") {
                 appendCodeBlock(codeText(from: node))
@@ -271,7 +303,7 @@ enum PostRenderer {
                     quoteText += AttributedString(code)
                 case .image(let url):
                     if !images.contains(url) { images.append(url) }
-                case .video:
+                case .video, .tweet:
                     break
                 }
             }
@@ -318,6 +350,20 @@ enum PostRenderer {
             guard let href = node.attr("href"), let url = AppConfig.resolve(href, relativeTo: baseURL) else {
                 walk(childrenOf: node)
                 return
+            }
+
+            // Expand bare X/Twitter status links into an inline card. Custom
+            // link text stays a normal link.
+            if let id = PostRenderer.tweetID(from: url) {
+                let text = node.textContent.trimmingCharacters(in: .whitespacesAndNewlines)
+                let bare = text.isEmpty
+                    || text.lowercased().hasPrefix("http")
+                    || text.lowercased().contains("twitter.com/")
+                    || text.lowercased().contains("x.com/")
+                if bare {
+                    appendTweetBlock(id)
+                    return
+                }
             }
 
             // A YouTube URL that is the whole content of a link is a video, not
@@ -452,6 +498,13 @@ enum PostRenderer {
             flushTextBlock()
             pendingBreaks = 0
             let block = PostBlock.image(url)
+            if !blocks.contains(block) { blocks.append(block) }
+        }
+
+        private mutating func appendTweetBlock(_ id: String) {
+            flushTextBlock()
+            pendingBreaks = 0
+            let block = PostBlock.tweet(id)
             if !blocks.contains(block) { blocks.append(block) }
         }
 
@@ -612,7 +665,7 @@ enum PostRenderer {
                 case .code(let code):
                     if !combined.characters.isEmpty { combined += AttributedString("\n") }
                     combined += AttributedString(code)
-                case .image, .video:
+                case .image, .video, .tweet:
                     break
                 }
             }

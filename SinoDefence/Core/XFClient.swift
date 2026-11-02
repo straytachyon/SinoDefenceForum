@@ -53,6 +53,7 @@ actor XFClient {
         configuration.httpShouldSetCookies = true
         configuration.httpCookieStorage = .shared
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.urlCache = nil
         configuration.httpAdditionalHeaders = [
             "User-Agent": AppConfig.userAgent,
             "Accept-Language": "en-US,en;q=0.9",
@@ -567,8 +568,27 @@ actor XFClient {
 
     private func get(_ url: URL) async throws -> (String, URL) {
         var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue(baseURL.absoluteString, forHTTPHeaderField: "Referer")
-        let (data, response) = try await perform(request)
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        var (data, response) = try await perform(request)
+
+        // A few CDN edges still answer with 304 even for a no-cache request.
+        // Retry with a cache-busting parameter so a pull-to-refresh cannot
+        // silently keep showing an old forum listing.
+        if response.statusCode == 304, var components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+            var items = components.queryItems ?? []
+            items.append(URLQueryItem(name: "_sdf_refresh", value: String(Int(Date().timeIntervalSince1970))))
+            components.queryItems = items
+            if let retryURL = components.url {
+                var retry = URLRequest(url: retryURL)
+                retry.cachePolicy = .reloadIgnoringLocalCacheData
+                retry.setValue(baseURL.absoluteString, forHTTPHeaderField: "Referer")
+                retry.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+                (data, response) = try await perform(retry)
+            }
+        }
+
         let html = Self.decode(data, response: response)
         if let message = XFParser.errorMessage(in: html),
            message.localizedCaseInsensitiveContains("must be logged") {

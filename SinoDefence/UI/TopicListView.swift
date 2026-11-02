@@ -71,6 +71,18 @@ struct TopicListContent: View {
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
+                    Task { await model.refresh(session: session) }
+                } label: {
+                    if model.isLoading {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+                .accessibilityLabel("Refresh topics")
+                .disabled(model.isLoading)
+
+                Button {
                     showTabOrder = true
                 } label: {
                     Image(systemName: "arrow.up.arrow.down")

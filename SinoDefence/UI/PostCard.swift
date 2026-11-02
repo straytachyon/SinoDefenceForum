@@ -125,6 +125,9 @@ struct PostCard: View {
                         case .image(let url):
                             InlinePostImage(url: url, gallery: galleryURLs)
 
+                        case .tweet(let id):
+                            TweetEmbedView(statusID: id)
+
                         case .video(let id):
                             VStack(alignment: .trailing, spacing: 4) {
                                 YouTubeEmbedView(videoID: id)

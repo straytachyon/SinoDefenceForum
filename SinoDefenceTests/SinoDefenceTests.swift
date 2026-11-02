@@ -477,6 +477,33 @@ struct ContentRenderingTests {
         #expect(urls.first?.absoluteString == pageURL)
     }
 
+    @Test func expandsXenForoTwitterOEmbed() {
+        let html = """
+        <div class="bbWrapper"><p>Report:</p>
+        <div class="bbOembed" data-media-site-id="twitter" data-media-key="2032478977164488895">
+        <a href="https://twitter.com/x/status/2032478977164488895">https://twitter.com/x/status/2032478977164488895</a>
+        </div></div>
+        """
+        let content = PostRenderer.render(html: html)
+        let ids: [String] = content.blocks.compactMap { block in
+            if case .tweet(let id) = block { return id }
+            return nil
+        }
+        #expect(ids == ["2032478977164488895"])
+    }
+
+    @Test func expandsBareTwitterStatusLinks() {
+        let html = "<p><a href=\"https://x.com/someone/status/2032181801561567350\">https://x.com/someone/status/2032181801561567350</a></p>"
+        let content = PostRenderer.render(html: html)
+        #expect(content.blocks.contains { if case .tweet("2032181801561567350") = $0 { return true }; return false })
+    }
+
+    @Test func extractsTweetIDs() {
+        #expect(PostRenderer.tweetID(from: URL(string: "https://twitter.com/x/status/2032478977164488895")!) == "2032478977164488895")
+        #expect(PostRenderer.tweetID(from: URL(string: "https://x.com/user/status/123")!) == "123")
+        #expect(PostRenderer.tweetID(from: URL(string: "https://x.com/intent/tweet?url=foo")!) == nil)
+    }
+
     @Test func preservesPostTextScaleAttribute() {
         let content = PostRenderer.render(html: "<p>Hello <strong>world</strong></p>")
         #expect(String(content.text.characters).contains("Hello world"))

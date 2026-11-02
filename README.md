@@ -25,7 +25,11 @@ tokens stay between the app and the forum.
   endpoint, while read threads open at `/latest`, the newest post.
 - **Native thread rendering** — post headers, avatars, member titles, staff
   badges, quotes, code cards, inline images, lists, links and YouTube embeds.
+  XenForo oEmbed and bare X/Twitter status links expand into inline tweet cards.
   Tap a picture for a full-screen, swipeable, pinch-zoomable gallery.
+- **Fresh listings** — forum/topic HTML bypasses URLSession's cache, retries a
+  stale 304 with a cache-buster, and the toolbar has an explicit refresh button
+  in addition to pull-to-refresh.
 - **Posting** — reply to a thread or start a new one. Replies do not prompt for
   a subject; only new threads do. The editor keeps a
   forum-style BBCode toolbar (bold, italic, quote, code, lists, links, image,
