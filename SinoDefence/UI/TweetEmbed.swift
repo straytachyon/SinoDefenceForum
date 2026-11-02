@@ -230,6 +230,16 @@ struct TweetInfo: Sendable {
     var replies: Int
 
     static func load(_ statusID: String) async throws -> TweetInfo {
+        do {
+            return try await loadSyndication(statusID)
+        } catch {
+            // Some networks/VPNs block cdn.syndication.twimg.com. The oEmbed
+            // endpoint gives us the text/author without requiring the widget.
+            return try await loadOEmbed(statusID)
+        }
+    }
+
+    private static func loadSyndication(_ statusID: String) async throws -> TweetInfo {
         guard let url = URL(string: "https://cdn.syndication.twimg.com/tweet-result?id=\(statusID)&lang=en&token=a") else {
             throw URLError(.badURL)
         }
@@ -282,6 +292,60 @@ struct TweetInfo: Sendable {
             photos: photos,
             likes: payload.favoriteCount ?? 0,
             replies: payload.conversationCount ?? 0
+        )
+    }
+}
+
+private extension TweetInfo {
+    static func loadOEmbed(_ statusID: String) async throws -> TweetInfo {
+        var components = URLComponents(string: "https://publish.twitter.com/oembed")!
+        components.queryItems = [
+            URLQueryItem(name: "url", value: "https://twitter.com/i/status/\(statusID)"),
+            URLQueryItem(name: "omit_script", value: "1"),
+            URLQueryItem(name: "dnt", value: "true"),
+        ]
+        guard let url = components.url else { throw URLError(.badURL) }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 20
+        request.setValue(
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 " +
+            "(KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+            forHTTPHeaderField: "User-Agent"
+        )
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let author = json["author_name"] as? String,
+              let html = json["html"] as? String else {
+            throw URLError(.cannotParseResponse)
+        }
+        let document = HTMLParser.parse(html)
+        let text = document.firstTag("p")?.textContent
+            ?? document.firstTag("blockquote")?.textContent
+            ?? ""
+        guard !text.isEmpty else { throw URLError(.cannotParseResponse) }
+
+        let authorURL = (json["author_url"] as? String).flatMap(URL.init(string:))
+        let screenName = authorURL?.lastPathComponent
+            ?? (json["url"] as? String).flatMap { URL(string: $0)?.pathComponents.last }
+            ?? "i"
+        let dateText = document.allTags("a").last?.textContent
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "MMMM d, yyyy"
+
+        return TweetInfo(
+            authorName: author,
+            screenName: screenName,
+            avatarURL: nil,
+            isVerified: false,
+            text: text,
+            date: dateText.flatMap(formatter.date(from:)),
+            photos: [],
+            likes: 0,
+            replies: 0
         )
     }
 }
