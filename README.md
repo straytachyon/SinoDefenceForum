@@ -25,7 +25,9 @@ tokens stay between the app and the forum.
   endpoint, while read threads open at `/latest`, the newest post.
 - **Native thread rendering** — post headers, avatars, member titles, staff
   badges, quotes, code cards, inline images, lists, links and YouTube embeds.
-  XenForo oEmbed and bare X/Twitter status links expand into inline tweet cards.
+  XenForo oEmbed and bare X/Twitter status links expand into native tweet cards
+  (text, photos, author and engagement counts) without relying on Twitter's
+  embedded widget, so they also render on physical iPhones and iPads.
   Tap a picture for a full-screen, swipeable, pinch-zoomable gallery.
 - **Fresh listings** — forum/topic HTML bypasses URLSession's cache, retries a
   stale 304 with a cache-buster, and the toolbar has an explicit refresh button
