@@ -305,6 +305,50 @@ actor XFClient {
         return .posted(topicID: topicID, messageID: XFParser.postID(fromRedirect: finalURL))
     }
 
+    // MARK: - Reactions
+
+    func react(postID: Int, reactionID: Int, csrfToken: String) async throws -> ReactionResult {
+        guard !csrfToken.isEmpty else { throw XFError.notLoggedIn }
+        guard let url = URL(string: "posts/\(postID)/react?reaction_id=\(reactionID)", relativeTo: baseURL)?.absoluteURL else {
+            throw XFError.postFailed("The reaction URL could not be built.")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
+        request.setValue(baseURL.absoluteString, forHTTPHeaderField: "Referer")
+        request.httpBody = Self.formEncode([
+            "_xfToken": csrfToken,
+            "_xfResponseType": "json",
+            "_xfWithData": "1",
+        ]).data(using: .utf8)
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw XFError.network("no HTTP response")
+        }
+        if http.statusCode == 403 { throw XFError.notLoggedIn }
+        guard let json = Self.jsonObject(Self.decode(data, response: http)) else {
+            throw XFError.postFailed("The forum returned an unexpected reaction response.")
+        }
+        if let status = json["status"] as? String, status == "error" {
+            let errors = json["errors"] as? [String] ?? []
+            throw XFError.postFailed(errors.first ?? "The reaction could not be saved.")
+        }
+        let reactionID = Self.intValue(json["reactionId"])
+        let html = json["html"] as? String
+        return ReactionResult(
+            reactionID: reactionID,
+            state: html.flatMap { XFParser.parseReactionBarUpdate($0) }
+        )
+    }
+
+    func fetchReactions(postID: Int) async throws -> [ReactionMember] {
+        let (html, _) = try await get(AppConfig.url("posts/\(postID)/reactions"))
+        return XFParser.parseReactionMembers(html)
+    }
+
     // MARK: - Attachments
 
     func uploadAttachment(

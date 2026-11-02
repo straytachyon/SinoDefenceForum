@@ -16,6 +16,7 @@ struct MainTabs: View {
 
     @State private var selection: TabID = .newPosts
     @State private var showSettings = false
+    @State private var unreadCount = 0
     @AppStorage(TabOrder.defaultsKey) private var tabOrder = ""
 
     private var orderedBoards: [ForumBoard] {
@@ -32,8 +33,24 @@ struct MainTabs: View {
             .sheet(isPresented: $showSettings) {
                 SettingsView()
             }
+            .task {
+                await refreshUnreadCount()
+            }
+            .onChange(of: session.phase) { _, phase in
+                if phase == .signedIn {
+                    Task { await refreshUnreadCount() }
+                }
+            }
             .onChange(of: session.categories) { _, _ in
                 validateSelection()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .topicRead)) { _ in
+                guard session.isSignedIn else { return }
+                if unreadCount > 0 { unreadCount -= 1 }
+                Task {
+                    try? await Task.sleep(for: .seconds(1.2))
+                    await refreshUnreadCount()
+                }
             }
     }
 
@@ -42,6 +59,7 @@ struct MainTabs: View {
             Tab("New posts", systemImage: "dot.radiowaves.left.and.right", value: TabID.newPosts) {
                 TopicListTab(mode: .newPosts, onShowSettings: { showSettings = true })
             }
+            .badge(unreadCount)
 
             ForEach(directBoards) { board in
                 Tab(board.tabTitle, systemImage: board.iconName, value: TabID.board(board.id)) {
@@ -63,6 +81,21 @@ struct MainTabs: View {
                 selection = .newPosts
             }
             #endif
+        }
+    }
+
+    private func refreshUnreadCount() async {
+        guard session.isSignedIn else {
+            unreadCount = 0
+            return
+        }
+        do {
+            let page = try await XFClient.shared.fetchNewPosts()
+            let count = page.topics.filter(\.isUnread).count
+            unreadCount = count
+        } catch {
+            // A failed count refresh should not disturb the tab badge; the
+            // next visit or launch retries it.
         }
     }
 

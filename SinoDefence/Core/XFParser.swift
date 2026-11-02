@@ -386,6 +386,11 @@ enum XFParser {
             (form.attr("action") ?? "").contains("/reply")
         })
         let replyURL = replyForm?.attr("action").flatMap { AppConfig.resolve($0) }
+        let reactionTemplate = Self.capture(
+            "<script[^>]*id=\"xfReactTooltipTemplate\"[^>]*>([\\s\\S]*?)</script>",
+            in: html
+        )?[1] ?? ""
+        let availableReactions = parseReactionOptions(html: reactionTemplate)
 
         return TopicPage(
             topicID: topicID,
@@ -402,7 +407,8 @@ enum XFParser {
             canModerate: canModerate,
             csrfToken: csrf(in: document),
             targetPostID: nil,
-            replyURL: replyURL
+            replyURL: replyURL,
+            availableReactions: availableReactions
         )
     }
 
@@ -466,6 +472,7 @@ enum XFParser {
         let contentNode = body?.firstClass("bbWrapper") ?? body
         let rawHTML = contentNode?.innerHTML ?? body?.innerHTML ?? ""
         let content = PostRenderer.render(html: rawHTML)
+        let reactionState = parseReactionBar(in: article)
 
         return ForumPost(
             id: id,
@@ -480,8 +487,138 @@ enum XFParser {
             postNumber: postNumber,
             content: content,
             rawHTML: rawHTML,
-            canModerate: canModerate
+            canModerate: canModerate,
+            reactions: reactionState?.reactions ?? [],
+            reactionNames: reactionState?.names ?? "",
+            reactionCount: reactionState?.count ?? 0,
+            myReactionID: reactionState?.myReactionID,
+            canReact: reactionState?.canReact ?? false
         )
+    }
+
+    // MARK: - Reactions
+
+    static func parseReactionOptions(html: String) -> [ReactionOption] {
+        guard !html.isEmpty else { return [] }
+        let document = HTMLParser.parse(html)
+        return parseReactionOptions(in: document)
+    }
+
+    private static func parseReactionOptions(in node: HTMLNode) -> [ReactionOption] {
+        var result: [ReactionOption] = []
+        var seen = Set<Int>()
+        for anchor in node.all(where: { $0.tag == "a" || $0.tag == "span" }) {
+            guard anchor.hasClass("reaction"),
+                  let idText = anchor.attr("data-reaction-id"),
+                  let id = Int(idText),
+                  seen.insert(id).inserted else { continue }
+            let image = anchor.firstTag("img")
+            let name = image?.attr("alt") ?? image?.attr("title") ?? "Reaction"
+            let icon = image?.src.flatMap { AppConfig.resolve($0) }
+            result.append(ReactionOption(id: id, name: name, iconURL: icon))
+        }
+        return result.sorted { $0.id < $1.id }
+    }
+
+    private static func parseReactionBar(in article: HTMLNode) -> ReactionBarState? {
+        guard let bar = article.firstClass("reactionsBar") else {
+            if let link = article.all(where: {
+                $0.tag == "a" && ($0.href ?? "").contains("/react?reaction_id=")
+            }).first {
+                let myReaction = link.hasClass("has-reaction")
+                    ? link.attr("data-reaction-id").flatMap(Int.init)
+                    : nil
+                return ReactionBarState(
+                    reactions: [],
+                    names: "",
+                    count: 0,
+                    myReactionID: myReaction,
+                    canReact: true
+                )
+            }
+            return nil
+        }
+
+        let count = article.first(where: { $0.hasClass("message-microdata") })?
+            .all(where: { $0.tag == "meta" && $0.attr("itemprop") == "userInteractionCount" })
+            .first?.attr("content").flatMap(Int.init) ?? 0
+        var state = reactionState(in: bar, count: count)
+        if !state.canReact, let link = article.all(where: {
+            $0.tag == "a" && ($0.href ?? "").contains("/react?reaction_id=")
+        }).first {
+            state.canReact = true
+            state.myReactionID = link.hasClass("has-reaction")
+                ? link.attr("data-reaction-id").flatMap(Int.init)
+                : nil
+        }
+        return state
+    }
+
+    private static func reactionState(in bar: HTMLNode, count: Int) -> ReactionBarState {
+        let reactions = parseReactionOptions(in: bar.firstClass("reactionSummary") ?? bar)
+        let names = bar.firstClass("reactionsBar-link")?.textContent ?? ""
+        let reactLink = bar.all(where: {
+            $0.tag == "a" && ($0.href ?? "").contains("/react?reaction_id=")
+        }).first
+        let myReaction = reactLink?.hasClass("has-reaction") == true
+            ? reactLink?.attr("data-reaction-id").flatMap(Int.init)
+            : nil
+        return ReactionBarState(
+            reactions: reactions,
+            names: names,
+            count: count,
+            myReactionID: myReaction,
+            canReact: reactLink != nil
+        )
+    }
+
+    static func parseReactionBarUpdate(_ html: String) -> ReactionBarState? {
+        let document = HTMLParser.parse(html)
+        guard let bar = document.firstClass("reactionsBar") else { return nil }
+        let micro = document.first(where: { $0.hasClass("message-microdata") })
+        let count = micro?.all(where: { $0.tag == "meta" && $0.attr("itemprop") == "userInteractionCount" })
+            .first?.attr("content").flatMap(Int.init) ?? 0
+        return reactionState(in: bar, count: count)
+    }
+
+    static func parseReactionMembers(_ html: String) -> [ReactionMember] {
+        let document = HTMLParser.parse(html)
+        let list = document.firstClass("js-reactionList-0")
+            ?? document.firstClass("js-reactionTabPanes")
+        guard let list else { return [] }
+
+        var members: [ReactionMember] = []
+        for (index, row) in list.all(where: { $0.tag == "li" && $0.hasClass("block-row") }).enumerated() {
+            let nameAnchor = row.firstClass("contentRow-header")?.firstTag("a")
+                ?? row.first(where: { $0.tag == "a" && $0.hasClass("username") })
+            let name = nameAnchor?.textContent
+                ?? row.firstClass("contentRow-figure")?.firstTag("img")?.attr("alt")
+                ?? ""
+            guard !name.isEmpty else { continue }
+
+            let extra = row.firstClass("contentRow-extra")
+            let reactionNode = extra?.all(where: { $0.hasClass("reaction") }).first
+            let image = reactionNode?.firstTag("img")
+            let reactionID = reactionNode?.attr("data-reaction-id").flatMap(Int.init) ?? 0
+            let reaction = ReactionOption(
+                id: reactionID,
+                name: image?.attr("alt") ?? image?.attr("title") ?? "Reaction",
+                iconURL: image?.src.flatMap { AppConfig.resolve($0) }
+            )
+            let avatar = row.firstClass("contentRow-figure")?.firstTag("img")?.src
+                .flatMap { AppConfig.resolve($0) }
+            let time = row.first(where: { $0.tag == "time" })
+            let date = time?.attr("data-date") ?? time?.textContent ?? ""
+
+            members.append(ReactionMember(
+                id: "\(name)-\(index)",
+                name: name,
+                avatarURL: avatar,
+                reaction: reaction,
+                dateText: date
+            ))
+        }
+        return members
     }
 
     // MARK: - Posting form

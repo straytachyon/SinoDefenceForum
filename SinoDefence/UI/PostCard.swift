@@ -14,6 +14,10 @@ struct PostCard: View {
     var trailingInset: CGFloat = 0
     var onQuote: ((ForumPost) -> Void)?
     var onModerate: ((ForumPost) -> Void)?
+    var availableReactions: [ReactionOption] = []
+    var onReact: ((ForumPost, Int) -> Void)?
+
+    @State private var showReactionList = false
 
     private var galleryURLs: [URL] {
         var urls: [URL] = []
@@ -153,6 +157,8 @@ struct PostCard: View {
             if !post.content.images.isEmpty {
                 PostImageGrid(urls: post.content.images, gallery: galleryURLs)
             }
+
+            reactionBar
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.leading, leadingInset)
@@ -162,6 +168,89 @@ struct PostCard: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color(.secondarySystemGroupedBackground))
         )
+        .sheet(isPresented: $showReactionList) {
+            ReactionListSheet(post: post)
+        }
+    }
+
+    @ViewBuilder
+    private var reactionBar: some View {
+        if post.canReact || !post.reactions.isEmpty || !post.reactionNames.isEmpty {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 7) {
+                    ForEach(post.reactions) { reaction in
+                        Button {
+                            showReactionList = true
+                        } label: {
+                            ReactionIconView(reaction: reaction, size: 20)
+                                .padding(2)
+                                .background(
+                                    Circle().fill(
+                                        post.myReactionID == reaction.id
+                                            ? AppTheme.accent.opacity(0.16)
+                                            : Color.clear
+                                    )
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    if post.canReact, let onReact {
+                        Menu {
+                            ForEach(reactionChoices) { reaction in
+                                Button {
+                                    onReact(post, reaction.id)
+                                } label: {
+                                    HStack {
+                                        Text("\(reaction.emoji)  \(reaction.name)")
+                                        if post.myReactionID == reaction.id {
+                                            Spacer()
+                                            Image(systemName: "checkmark")
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: post.myReactionID == nil ? "hand.thumbsup" : "hand.thumbsup.fill")
+                                Text(post.myReactionID == nil ? "React" : "Change")
+                            }
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(AppTheme.accent)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(AppTheme.accent.opacity(0.10)))
+                        }
+                        .accessibilityLabel(post.myReactionID == nil ? "React to post" : "Change reaction")
+                    }
+
+                    Spacer(minLength: 0)
+
+                    if post.reactionCount > 0 {
+                        Text("\(post.reactionCount)")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(AppTheme.secondaryText)
+                    }
+                }
+
+                if !post.reactionNames.isEmpty {
+                    Button {
+                        showReactionList = true
+                    } label: {
+                        Text(post.reactionNames)
+                            .font(.caption2)
+                            .foregroundStyle(AppTheme.secondaryText)
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.top, 3)
+        }
+    }
+
+    private var reactionChoices: [ReactionOption] {
+        availableReactions.isEmpty ? ReactionOption.defaults : availableReactions
     }
 
     private var avatar: some View {

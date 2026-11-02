@@ -196,6 +196,11 @@ struct ForumPost: Identifiable, Sendable {
     var content: PostContent
     var rawHTML: String
     var canModerate: Bool
+    var reactions: [ReactionOption] = []
+    var reactionNames: String = ""
+    var reactionCount: Int = 0
+    var myReactionID: Int? = nil
+    var canReact: Bool = false
 
     var profileURL: URL? {
         guard let authorID, authorID > 0 else { return nil }
@@ -205,6 +210,54 @@ struct ForumPost: Identifiable, Sendable {
     var postURL: URL {
         AppConfig.url("posts/\(id)/")
     }
+}
+
+struct ReactionOption: Identifiable, Hashable, Sendable {
+    let id: Int
+    let name: String
+    let iconURL: URL?
+
+    var emoji: String {
+        switch name.lowercased() {
+        case "like": return "👍"
+        case "love": return "😍"
+        case "haha": return "😂"
+        case "wow": return "😮"
+        case "sad": return "🙁"
+        case "angry": return "😡"
+        default: return "👍"
+        }
+    }
+
+    static let defaults: [ReactionOption] = [
+        ReactionOption(id: 1, name: "Like", iconURL: URL(string: "https://cdn.jsdelivr.net/joypixels/assets/8.0/png/unicode/64/1f44d.png")),
+        ReactionOption(id: 2, name: "Love", iconURL: URL(string: "https://cdn.jsdelivr.net/joypixels/assets/8.0/png/unicode/64/1f60d.png")),
+        ReactionOption(id: 3, name: "Haha", iconURL: URL(string: "https://cdn.jsdelivr.net/joypixels/assets/8.0/png/unicode/64/1f923.png")),
+        ReactionOption(id: 4, name: "Wow", iconURL: URL(string: "https://cdn.jsdelivr.net/joypixels/assets/8.0/png/unicode/64/1f632.png")),
+        ReactionOption(id: 5, name: "Sad", iconURL: URL(string: "https://cdn.jsdelivr.net/joypixels/assets/8.0/png/unicode/64/1f641.png")),
+        ReactionOption(id: 6, name: "Angry", iconURL: URL(string: "https://cdn.jsdelivr.net/joypixels/assets/8.0/png/unicode/64/1f621.png")),
+    ]
+}
+
+struct ReactionBarState: Sendable {
+    var reactions: [ReactionOption]
+    var names: String
+    var count: Int
+    var myReactionID: Int?
+    var canReact: Bool
+}
+
+struct ReactionMember: Identifiable, Sendable {
+    let id: String
+    var name: String
+    var avatarURL: URL?
+    var reaction: ReactionOption
+    var dateText: String
+}
+
+struct ReactionResult: Sendable {
+    var reactionID: Int?
+    var state: ReactionBarState?
 }
 
 struct TopicPage: Sendable {
@@ -224,6 +277,7 @@ struct TopicPage: Sendable {
     /// Set when XenForo redirected a `/latest` or `/unread` request to a post.
     var targetPostID: Int? = nil
     var replyURL: URL?
+    var availableReactions: [ReactionOption] = []
 
     var hasNextPage: Bool { currentPage < pageCount }
     var hasPreviousPage: Bool { currentPage > 1 }

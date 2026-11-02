@@ -477,6 +477,65 @@ struct ContentRenderingTests {
         #expect(urls.first?.absoluteString == pageURL)
     }
 
+    @Test func parsesPostReactionsAndReactionList() {
+        let html = """
+        <!DOCTYPE html><html id="XF" data-logged-in="true" data-csrf="1,abc"><body>
+        <h1 class="p-title-value">Reaction test</h1>
+        <article class="message message--post" data-content="post-42" data-author="Alice">
+          <div class="message-cell message-cell--user"><section class="message-user">
+            <div class="message-avatar"><img src="" alt="Alice"></div>
+            <h4 class="message-name"><a href="/members/alice.1/" class="username" data-user-id="1">Alice</a></h4>
+          </section></div>
+          <div class="message-cell message-cell--main">
+            <div class="message-body"><div class="bbWrapper"><p>Hello</p></div></div>
+            <footer class="message-footer">
+              <div class="message-microdata" itemprop="interactionStatistic"><meta itemprop="userInteractionCount" content="3"></div>
+              <div class="reactionsBar js-reactionsList is-active">
+                <ul class="reactionSummary">
+                  <li><span class="reaction reaction--small reaction--1" data-reaction-id="1"><img src="/like.png" alt="Like"></span></li>
+                  <li><span class="reaction reaction--small reaction--3" data-reaction-id="3"><img src="/haha.png" alt="Haha"></span></li>
+                </ul>
+                <a class="reactionsBar-link" href="/posts/42/reactions">Alice, Bob and Carol</a>
+                <a class="reaction reaction--3 has-reaction" href="/posts/42/react?reaction_id=3" data-reaction-id="3"><img src="/haha.png" alt="Haha"></a>
+              </div>
+            </footer>
+          </div>
+        </article>
+        <script type="text/template" id="xfReactTooltipTemplate">
+          <a class="reaction" data-reaction-id="1"><img src="/like.png" alt="Like"></a>
+          <a class="reaction" data-reaction-id="3"><img src="/haha.png" alt="Haha"></a>
+        </script>
+        </body></html>
+        """
+        let page = XFParser.parseThread(html, topicID: 42)
+        #expect(page.posts.count == 1)
+        #expect(page.posts[0].reactions.map(\.id) == [1, 3])
+        #expect(page.posts[0].reactionNames == "Alice, Bob and Carol")
+        #expect(page.posts[0].reactionCount == 3)
+        #expect(page.posts[0].myReactionID == 3)
+        #expect(page.posts[0].canReact)
+        #expect(page.availableReactions.map(\.id) == [1, 3])
+
+        let listHTML = """
+        <ol class="js-reactionList-0">
+          <li class="block-row block-row--separated">
+            <div class="contentRow">
+              <div class="contentRow-figure"><img src="/avatar.jpg" alt="Alice"></div>
+              <div class="contentRow-main">
+                <div class="contentRow-extra"><span class="reaction reaction--1" data-reaction-id="1"><img src="/like.png" alt="Like"></span><time data-date="Jan 1, 2026">Jan 1</time></div>
+                <h3 class="contentRow-header"><a href="/members/alice.1/" class="username">Alice</a></h3>
+              </div>
+            </div>
+          </li>
+        </ol>
+        """
+        let members = XFParser.parseReactionMembers(listHTML)
+        #expect(members.count == 1)
+        #expect(members[0].name == "Alice")
+        #expect(members[0].reaction.name == "Like")
+        #expect(members[0].dateText == "Jan 1, 2026")
+    }
+
     @Test func expandsXenForoTwitterOEmbed() {
         let html = """
         <div class="bbWrapper"><p>Report:</p>

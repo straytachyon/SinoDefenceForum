@@ -136,6 +136,7 @@ final class TopicModel {
     private(set) var canModerate = false
     private(set) var csrfToken: String?
     private(set) var replyURL: URL?
+    private(set) var availableReactions: [ReactionOption] = []
     /// Bumped when the user jumps to another page, so the view can scroll to the top.
     private(set) var paginationToken = 0
     private(set) var jumpTarget: Int?
@@ -143,6 +144,7 @@ final class TopicModel {
     private(set) var isModerating = false
     var errorMessage: String?
     var moderatorMessage: String?
+    var reactionMessage: String?
 
     private let client = XFClient.shared
     private let opensAtLatest: Bool
@@ -198,6 +200,49 @@ final class TopicModel {
             jumpTarget = posts.last?.id
         }
         jumpToken += 1
+    }
+
+    // MARK: - Reactions
+
+    func react(_ post: ForumPost, reactionID: Int, session: Session) async {
+        guard session.isSignedIn, let token = csrfToken else {
+            reactionMessage = "Sign in to react to posts."
+            return
+        }
+        do {
+            let result = try await client.react(
+                postID: post.id,
+                reactionID: reactionID,
+                csrfToken: token
+            )
+            guard let currentIndex = posts.firstIndex(where: { $0.id == post.id }) else { return }
+            let oldReaction = posts[currentIndex].myReactionID
+            if let state = result.state {
+                posts[currentIndex].reactions = state.reactions
+                posts[currentIndex].reactionNames = state.names
+                posts[currentIndex].reactionCount = state.count
+            }
+            posts[currentIndex].myReactionID = result.reactionID
+            posts[currentIndex].canReact = true
+
+            if result.state == nil {
+                if let newReaction = result.reactionID {
+                    if oldReaction == nil {
+                        posts[currentIndex].reactionCount += 1
+                    }
+                    if !posts[currentIndex].reactions.contains(where: { $0.id == newReaction }),
+                       let option = availableReactions.first(where: { $0.id == newReaction }) {
+                        posts[currentIndex].reactions.append(option)
+                    }
+                } else if oldReaction != nil {
+                    posts[currentIndex].reactionCount = max(0, posts[currentIndex].reactionCount - 1)
+                }
+            }
+        } catch XFError.notLoggedIn {
+            session.sessionExpired()
+        } catch {
+            reactionMessage = error.localizedDescription
+        }
     }
 
     // MARK: - Moderation
@@ -326,6 +371,9 @@ final class TopicModel {
         canModerate = page.canModerate
         csrfToken = page.csrfToken
         replyURL = page.replyURL
+        if !page.availableReactions.isEmpty {
+            availableReactions = page.availableReactions
+        }
         if canModerate { session.markModerator() }
 
         if let target = page.targetPostID {
@@ -344,4 +392,6 @@ final class TopicModel {
 
 extension Notification.Name {
     static let topicDidClose = Notification.Name("SinoDefence.topicDidClose")
+    static let topicRead = Notification.Name("SinoDefence.topicRead")
+    static let refreshNewPosts = Notification.Name("SinoDefence.refreshNewPosts")
 }

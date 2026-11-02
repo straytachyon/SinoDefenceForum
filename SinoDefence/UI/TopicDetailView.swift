@@ -15,6 +15,8 @@ struct TopicDetailView: View {
     @State private var showMoveSheet = false
     @State private var isLandscape = false
     @State private var showNotice = false
+    @State private var showReactionNotice = false
+    @State private var didReportRead = false
 
     /// Phones go edge-to-edge in both orientations; iPad keeps a readable column
     /// until it is turned to landscape.
@@ -80,6 +82,10 @@ struct TopicDetailView: View {
                                 } : nil,
                                 onModerate: post.canModerate ? { selected in
                                     postToDelete = selected
+                                } : nil,
+                                availableReactions: model.availableReactions,
+                                onReact: session.isSignedIn ? { selected, reactionID in
+                                    Task { await model.react(selected, reactionID: reactionID, session: session) }
                                 } : nil
                             )
                             .id(post.id)
@@ -146,6 +152,9 @@ struct TopicDetailView: View {
             .onChange(of: model.moderatorMessage) { _, newValue in
                 if newValue != nil { showNotice = true }
             }
+            .onChange(of: model.reactionMessage) { _, newValue in
+                if newValue != nil { showReactionNotice = true }
+            }
         }
         .background(Color(.systemGroupedBackground))
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -196,7 +205,13 @@ struct TopicDetailView: View {
                 }
             }
         }
-        .task { await model.loadIfNeeded(session: session) }
+        .task {
+            await model.loadIfNeeded(session: session)
+            if topic.isUnread, !model.posts.isEmpty, !didReportRead {
+                didReportRead = true
+                NotificationCenter.default.post(name: .topicRead, object: topic.id)
+            }
+        }
         .refreshable { await model.refresh(session: session) }
         .environment(\.openURL, OpenURLAction { url in
             guard url.scheme == "http" || url.scheme == "https" else { return .systemAction }
@@ -253,6 +268,11 @@ struct TopicDetailView: View {
             Button("OK") { model.moderatorMessage = nil }
         } message: {
             Text(model.moderatorMessage ?? "")
+        }
+        .alert("Reaction", isPresented: $showReactionNotice) {
+            Button("OK") { model.reactionMessage = nil }
+        } message: {
+            Text(model.reactionMessage ?? "")
         }
     }
 

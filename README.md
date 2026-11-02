@@ -14,7 +14,8 @@ tokens stay between the app and the forum.
 
 - **New posts tab** — the first tab opens `/whats-new/posts/` and paginates
   XenForo's forum-wide "New posts" listing. It replaces the "Unread" tab used by
-  the China Defense Forum client.
+  the China Defense Forum client. The tab badge shows the number of unread
+  threads, refreshed when the app launches and after an unread thread is opened.
 - **Forum tabs plus a Forums directory** — the first three forums in your
   arranged order get their own tabs; every top-level forum is also listed in
   Forums. This avoids UIKit's nested "More" navigation bar, so thread pages have
@@ -25,6 +26,8 @@ tokens stay between the app and the forum.
   endpoint, while read threads open at `/latest`, the newest post.
 - **Native thread rendering** — post headers, avatars, member titles, staff
   badges, quotes, code cards, inline images, lists, links and YouTube embeds.
+  Posts show the reactions other members gave, with a full member-by-member
+  reaction sheet. Signed-in members can add or change any enabled reaction.
   XenForo oEmbed and bare X/Twitter status links expand into native tweet cards
   (text, photos, author and engagement counts) without relying on Twitter's
   embedded widget, so they also render on physical iPhones and iPads.
