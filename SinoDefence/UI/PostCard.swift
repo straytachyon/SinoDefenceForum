@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import WebKit
 
 struct PostCard: View {
@@ -14,6 +15,7 @@ struct PostCard: View {
     var trailingInset: CGFloat = 0
     var onQuote: ((ForumPost) -> Void)?
     var onModerate: ((ForumPost) -> Void)?
+    var onEdit: ((ForumPost) -> Void)?
     var availableReactions: [ReactionOption] = []
     var onReact: ((ForumPost, Int) -> Void)?
 
@@ -72,10 +74,17 @@ struct PostCard: View {
                     .accessibilityLabel("Quote post")
                 }
 
-                if let onModerate {
+                if onEdit != nil || onModerate != nil {
                     Menu {
-                        Button("Delete Post", systemImage: "trash", role: .destructive) {
-                            onModerate(post)
+                        if let onEdit, post.editURL != nil {
+                            Button("Edit Post", systemImage: "pencil") {
+                                onEdit(post)
+                            }
+                        }
+                        if let onModerate {
+                            Button("Delete Post", systemImage: "trash", role: .destructive) {
+                                onModerate(post)
+                            }
                         }
                         Button("Open Post in Browser", systemImage: "safari") {
                             openURL(post.postURL)
@@ -86,7 +95,7 @@ struct PostCard: View {
                             .foregroundStyle(AppTheme.secondaryText)
                             .frame(width: 30, height: 28)
                     }
-                    .accessibilityLabel("Moderator actions")
+                    .accessibilityLabel(onModerate != nil ? "Moderator actions" : "Post actions")
                 }
 
                 if let number = post.postNumber {
@@ -160,6 +169,7 @@ struct PostCard: View {
 
             reactionBar
         }
+        .textSelection(.enabled)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.leading, leadingInset)
         .padding(.trailing, trailingInset)
@@ -350,9 +360,25 @@ struct InlinePostImage: View {
             let urls = gallery.isEmpty ? [url] : gallery
             selection = GallerySelection(index: urls.firstIndex(of: url) ?? 0)
         }
+        .contextMenu {
+            Button("Copy Image", systemImage: "doc.on.doc") {
+                PostImageClipboard.copy(url)
+            }
+        }
         .fullScreenCover(item: $selection) { selection in
             let urls = gallery.isEmpty ? [url] : gallery
             ImagePreview(urls: urls, startIndex: selection.index)
+        }
+    }
+}
+
+enum PostImageClipboard {
+    static func copy(_ url: URL) {
+        Task {
+            guard let image = await RemoteImageLoader.load(url) else { return }
+            await MainActor.run {
+                UIPasteboard.general.image = image
+            }
         }
     }
 }
@@ -398,6 +424,11 @@ struct PostImageGrid: View {
                     .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .onTapGesture {
                         selection = GallerySelection(index: viewerURLs.firstIndex(of: url) ?? 0)
+                    }
+                    .contextMenu {
+                        Button("Copy Image", systemImage: "doc.on.doc") {
+                            PostImageClipboard.copy(url)
+                        }
                     }
             } else {
                 LazyVGrid(columns: columns, spacing: 8) {

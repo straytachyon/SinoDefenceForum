@@ -25,6 +25,7 @@ final class PostComposer {
     enum Mode {
         case newTopic(BoardTarget)
         case reply(ForumTopic, quote: ForumPost?)
+        case edit(ForumPost)
     }
 
     struct Preview {
@@ -55,7 +56,13 @@ final class PostComposer {
     }
 
     var navigationTitle: String {
-        isNewTopic ? "New Thread" : "Reply"
+        if case .edit = mode { return "Edit Post" }
+        return isNewTopic ? "New Thread" : "Reply"
+    }
+
+    var isEditing: Bool {
+        if case .edit = mode { return true }
+        return false
     }
 
     var topicTitle: String {
@@ -160,6 +167,9 @@ final class PostComposer {
             case .reply(let topic, _):
                 boardID = nil
                 topicID = topic.id
+            case .edit(let post):
+                boardID = nil
+                topicID = post.id
             }
             form = PostFormInfo(
                 action: AppConfig.url(topicID.map { "threads/\($0)/reply" } ?? "forums/\(boardID ?? 0)/post-thread"),
@@ -173,6 +183,9 @@ final class PostComposer {
             if message.isEmpty, case .reply(_, let quote?) = mode {
                 message = Self.quoteDraft(for: quote)
             }
+            if message.isEmpty, case .edit(let post) = mode {
+                message = HTMLToBBCode.convert(post.rawHTML)
+            }
             errorMessage = nil
             return
         }
@@ -185,6 +198,8 @@ final class PostComposer {
                 loaded = try await client.fetchNewThreadForm(boardID: board.id)
             case .reply(let topic, let quote):
                 loaded = try await client.fetchReplyForm(topicID: topic.id, quotePostID: quote?.id)
+            case .edit(let post):
+                loaded = try await client.fetchEditForm(postID: post.id)
             }
 
             form = loaded
@@ -194,6 +209,8 @@ final class PostComposer {
             if message.isEmpty {
                 if case .reply(_, let quote?) = mode {
                     message = Self.quoteDraft(for: quote)
+                } else if case .edit(let post) = mode {
+                    message = HTMLToBBCode.convert(post.rawHTML)
                 } else {
                     message = ""
                 }

@@ -163,6 +163,7 @@ enum Fixtures {
                     <div class="bbImageWrapper"><a href="https://www.sinodefenceforum.com/attachments/fujian-jpg.179560/"><img src="https://www.sinodefenceforum.com/data/attachments/173/fujian.jpg" class="bbImage" alt="Fujian"></a></div>
                     <pre class="bbCodeBlock bbCodeBlock--code"><code class="bbCodeCode">hull = 003</code></pre>
                 </div></div></article></div></div>
+                <a href="/posts/1360340/edit" class="actionBar-action actionBar-action--edit">Edit</a>
             </div>
         </article>
     </div></div></div>
@@ -331,6 +332,22 @@ struct TopicListParsingTests {
 // MARK: - Threads and posts
 
 struct ThreadParsingTests {
+    @Test func convertsPostHTMLBackToBBCode() {
+        let html = """
+        <p>Hello <strong>world</strong> and <a href="https://example.com">link</a>.</p>
+        <blockquote class="bbCodeBlock bbCodeBlock--quote" data-quote="Alice">
+          <div class="bbCodeBlock-content"><p>Quoted</p></div>
+        </blockquote>
+        <ul><li>One</li><li>Two</li></ul>
+        """
+        let bbcode = HTMLToBBCode.convert(html)
+        #expect(bbcode.contains("[b]world[/b]"))
+        #expect(bbcode.contains("[url=https://example.com]link[/url]"))
+        #expect(bbcode.contains("[quote=\"Alice\"]"))
+        #expect(bbcode.contains("[list]"))
+        #expect(bbcode.contains("[li]One[/li]"))
+    }
+
     @Test func parsesThreadHeaderAndPosts() {
         let page = XFParser.parseThread(Fixtures.thread, topicID: 8048, slug: "cv-18-fujian-003-catobar-carrier-thread")
         #expect(page.title == "CV-18 Fujian/003 CATOBAR carrier thread")
@@ -339,6 +356,7 @@ struct ThreadParsingTests {
         #expect(page.posts[0].author == "Demo Moderator")
         #expect(page.posts[0].authorID == 1)
         #expect(page.posts[0].postNumber == 1)
+        #expect(page.posts[0].editURL?.path == "/posts/1360340/edit")
         #expect(page.posts[0].userTitle == "Colonel")
         #expect(page.posts[0].banners == ["VIP Professional"])
         #expect(page.posts[0].isStaff)
@@ -591,6 +609,8 @@ struct ContentRenderingTests {
         #expect(String(scaled.characters).contains("Hello world"))
     }
 }
+
+
 
 
 

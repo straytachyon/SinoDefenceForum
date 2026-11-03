@@ -309,6 +309,18 @@ actor XFClient {
         return ResolvedThread(topic: topic, targetPostID: target)
     }
 
+    func fetchEditForm(postID: Int) async throws -> PostFormInfo {
+        let (html, _) = try await get(AppConfig.url("posts/\(postID)/edit"))
+        if let message = XFParser.errorMessage(in: html) {
+            if message.localizedCaseInsensitiveContains("log") { throw XFError.notLoggedIn }
+            throw XFError.postFailed(message)
+        }
+        guard let form = XFParser.parsePostForm(html) else {
+            throw XFError.notLoggedIn
+        }
+        return form
+    }
+
     func fetchReplyForm(topicID: Int, quotePostID: Int? = nil) async throws -> PostFormInfo {
         var path = "threads/\(topicID)/reply"
         if let quotePostID { path += "?quote=\(quotePostID)" }

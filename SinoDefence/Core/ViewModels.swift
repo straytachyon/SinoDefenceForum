@@ -291,7 +291,6 @@ final class TopicModel {
         do {
             try await client.deletePost(id: post.id, reason: reason)
             posts.removeAll { $0.id == post.id }
-            moderatorMessage = "Post deleted."
         } catch {
             moderatorMessage = error.localizedDescription
         }

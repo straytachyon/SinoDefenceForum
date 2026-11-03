@@ -70,7 +70,7 @@ struct ComposeView: View {
                     if model.isSubmitting {
                         ProgressView()
                     } else {
-                        Button(model.isNewTopic ? "Post Thread" : "Post Reply") {
+                        Button(model.isEditing ? "Save Changes" : (model.isNewTopic ? "Post Thread" : "Post Reply")) {
                             Task { await post() }
                         }
                         .disabled(!model.canSubmit)

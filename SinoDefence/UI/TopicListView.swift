@@ -120,6 +120,10 @@ struct TopicListContent: View {
         .task(id: mode) {
             await model.loadIfNeeded(mode: mode, session: session)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .refreshNewPosts)) { _ in
+            guard case .newPosts = mode, !model.isLoading else { return }
+            Task { await model.refresh(session: session) }
+        }
         .onAppear {
             guard hasAppeared else {
                 hasAppeared = true

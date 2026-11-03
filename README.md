@@ -26,6 +26,8 @@ tokens stay between the app and the forum.
   endpoint, while read threads open at `/latest`, the newest post.
 - **Native thread rendering** — post headers, avatars, member titles, staff
   badges, quotes, code cards, inline images, lists, links and YouTube embeds.
+  Post text can be selected and copied; pictures have a **Copy Image** action
+  (and the full-screen viewer has a copy button).
   Posts show the reactions other members gave, with a full member-by-member
   reaction sheet. Signed-in members can add or change any enabled reaction.
   XenForo oEmbed and bare X/Twitter status links expand into native tweet cards
@@ -37,7 +39,8 @@ tokens stay between the app and the forum.
   in addition to pull-to-refresh.
 - **Notifications** — the bell opens a native XenForo alert list. Tapping an alert
   marks it read and opens the referenced post inside the app; the toolbar can
-  mark all alerts read.
+  mark all alerts read. The New posts list and unread badge refresh when the app
+  starts and after leaving a thread.
 - **Posting** — reply to a thread or start a new one. Replies do not prompt for
   a subject; only new threads do. The editor keeps a
   forum-style BBCode toolbar (bold, italic, quote, code, lists, links, image,
@@ -48,6 +51,8 @@ tokens stay between the app and the forum.
   to new threads and replies. Uploads use XenForo's attachment manager/hash, show
   per-file progress and can be removed before posting (which deletes the uploaded
   attachment server-side). Files are capped at 50 MB in the app.
+- **Editing** — posts expose Edit when XenForo itself provides an edit link for
+  the signed-in account, with the existing BBCode editor and preview.
 - **Moderator tools** — when the signed-in account has moderator permission,
   thread pages expose Stick/Unstick, Lock/Unlock, Move and Delete actions, and every
   post gets a moderator menu with Delete Post, including an optional reason for

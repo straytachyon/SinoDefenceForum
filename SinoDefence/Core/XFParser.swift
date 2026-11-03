@@ -473,6 +473,10 @@ enum XFParser {
         let rawHTML = contentNode?.innerHTML ?? body?.innerHTML ?? ""
         let content = PostRenderer.render(html: rawHTML)
         let reactionState = parseReactionBar(in: article)
+        let editURL = article.allTags("a").first(where: {
+            let href = $0.href ?? ""
+            return href.contains("/posts/\(id)/edit")
+        })?.href.flatMap { AppConfig.resolve($0) }
 
         return ForumPost(
             id: id,
@@ -492,7 +496,8 @@ enum XFParser {
             reactionNames: reactionState?.names ?? "",
             reactionCount: reactionState?.count ?? 0,
             myReactionID: reactionState?.myReactionID,
-            canReact: reactionState?.canReact ?? false
+            canReact: reactionState?.canReact ?? false,
+            editURL: editURL
         )
     }
 

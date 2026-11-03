@@ -201,6 +201,7 @@ struct ForumPost: Identifiable, Sendable {
     var reactionCount: Int = 0
     var myReactionID: Int? = nil
     var canReact: Bool = false
+    var editURL: URL? = nil
 
     var profileURL: URL? {
         guard let authorID, authorID > 0 else { return nil }

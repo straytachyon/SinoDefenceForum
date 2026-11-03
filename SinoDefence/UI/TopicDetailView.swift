@@ -11,6 +11,7 @@ struct TopicDetailView: View {
     @State private var showReply = false
     @State private var quotingPost: ForumPost?
     @State private var postToDelete: ForumPost?
+    @State private var editingPost: ForumPost?
     @State private var confirmDeleteThread = false
     @State private var showMoveSheet = false
     @State private var isLandscape = false
@@ -82,6 +83,9 @@ struct TopicDetailView: View {
                                 } : nil,
                                 onModerate: post.canModerate ? { selected in
                                     postToDelete = selected
+                                } : nil,
+                                onEdit: session.isSignedIn ? { selected in
+                                    editingPost = selected
                                 } : nil,
                                 availableReactions: model.availableReactions,
                                 onReact: session.isSignedIn ? { selected, reactionID in
@@ -207,10 +211,11 @@ struct TopicDetailView: View {
         }
         .task {
             await model.loadIfNeeded(session: session)
-            if topic.isUnread, !model.posts.isEmpty, !didReportRead {
-                didReportRead = true
-                NotificationCenter.default.post(name: .topicRead, object: topic.id)
-            }
+        }
+        .onDisappear {
+            guard topic.isUnread, !model.posts.isEmpty, !didReportRead else { return }
+            didReportRead = true
+            NotificationCenter.default.post(name: .topicRead, object: topic.id)
         }
         .refreshable { await model.refresh(session: session) }
         .environment(\.openURL, OpenURLAction { url in
@@ -262,6 +267,11 @@ struct TopicDetailView: View {
         .sheet(item: $postToDelete) { post in
             DeletePostSheet(post: post) { reason in
                 Task { await model.deletePost(post, reason: reason) }
+            }
+        }
+        .sheet(item: $editingPost) { post in
+            ComposeView(mode: .edit(post)) { _ in
+                Task { await model.refresh(session: session) }
             }
         }
         .alert("Moderator", isPresented: $showNotice) {
