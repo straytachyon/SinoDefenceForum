@@ -227,6 +227,34 @@ actor XFClient {
         return XFParser.parseTopicList(html, pageHint: page)
     }
 
+    func fetchAllNewPosts(maxPages: Int = 10) async throws -> TopicListPage {
+        let first = try await fetchNewPosts(page: 1)
+        guard first.pageCount > 1 else { return first }
+
+        var topics = first.topics
+        let upper = min(first.pageCount, maxPages)
+        if upper >= 2 {
+            for page in 2...upper {
+                guard let next = try? await fetchNewPosts(page: page) else { break }
+                topics.append(contentsOf: next.topics)
+            }
+        }
+        var seen = Set<Int>()
+        topics = topics.filter { seen.insert($0.id).inserted }
+
+        return TopicListPage(
+            topics: topics,
+            boardID: first.boardID,
+            boardName: first.boardName,
+            boardSlug: first.boardSlug,
+            boardSummary: first.boardSummary,
+            currentPage: 1,
+            pageCount: 1,
+            totalTopics: topics.count,
+            canModerate: first.canModerate
+        )
+    }
+
     func fetchBoard(id: Int, slug: String?, page: Int = 1) async throws -> TopicListPage {
         let url = AppConfig.url(AppConfig.forumPath(id: id, slug: slug, page: page))
         let (html, finalURL) = try await get(url)
@@ -353,6 +381,11 @@ actor XFClient {
         messageHTML: String
     ) async throws -> PostOutcome {
         var fields = form.fields
+        // 2.3 reads message_html, while some themes and the no-JS fallback still
+        // look at the legacy message field. Send the same block HTML to both so
+        // a post never lands with an empty body.
+        fields["message"] = messageHTML
+        fields["message_html"] = messageHTML
         fields[form.messageField] = messageHTML
         fields["_xfToken"] = form.csrfToken ?? fields["_xfToken"] ?? ""
         fields["_xfResponseType"] = "json"

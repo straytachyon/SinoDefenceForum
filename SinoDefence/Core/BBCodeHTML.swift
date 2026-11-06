@@ -7,7 +7,17 @@ enum BBCodeHTML {
     static func convert(_ input: String) -> String {
         var html = render(input[...], until: nil).0
         html = html.trimmingCharacters(in: .whitespacesAndNewlines)
-        return html.isEmpty ? "" : html
+        guard !html.isEmpty else { return "" }
+
+        // XenForo's 2.3 rich-text editor emits block HTML. A bare text run or
+        // inline tag is rejected by some message parsers and can create a post
+        // with no body, so make sure every message has a paragraph wrapper.
+        let hasBlock = ["<p", "<div", "<blockquote", "<ul", "<ol", "<pre", "<table", "<hr"]
+            .contains { html.localizedCaseInsensitiveContains($0) }
+        if !hasBlock {
+            html = "<p>\(html)</p>"
+        }
+        return html
     }
 
     // MARK: - Recursive renderer

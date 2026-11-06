@@ -103,7 +103,7 @@ struct MainTabs: View {
             return
         }
         do {
-            let page = try await XFClient.shared.fetchNewPosts()
+            let page = try await XFClient.shared.fetchAllNewPosts()
             let count = page.topics.filter(\.isUnread).count
             unreadCount = count
         } catch {

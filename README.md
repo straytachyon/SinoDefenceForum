@@ -16,6 +16,7 @@ tokens stay between the app and the forum.
   XenForo's forum-wide "New posts" listing. It replaces the "Unread" tab used by
   the China Defense Forum client. The tab badge shows the number of unread
   threads, refreshed when the app launches and after an unread thread is opened.
+  All New Posts pages are merged so the list is not limited to the first ten.
 - **Forum tabs plus a Forums directory** — the first three forums in your
   arranged order get their own tabs; every top-level forum is also listed in
   Forums. This avoids UIKit's nested "More" navigation bar, so thread pages have

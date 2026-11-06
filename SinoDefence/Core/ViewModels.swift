@@ -75,7 +75,9 @@ final class TopicListModel {
             let result: TopicListPage
             switch mode {
             case .newPosts:
-                result = try await client.fetchNewPosts(page: page)
+                result = appending
+                    ? try await client.fetchNewPosts(page: page)
+                    : try await client.fetchAllNewPosts()
             case .board(let board):
                 result = try await client.fetchBoard(id: board.id, slug: board.slug, page: page)
             }

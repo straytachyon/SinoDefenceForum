@@ -332,6 +332,11 @@ struct TopicListParsingTests {
 // MARK: - Threads and posts
 
 struct ThreadParsingTests {
+    @Test func wrapsPlainTextInParagraphHTML() {
+        #expect(BBCodeHTML.convert("hello world") == "<p>hello world</p>")
+        #expect(BBCodeHTML.convert("[b]bold[/b]").contains("<p>"))
+    }
+
     @Test func convertsPostHTMLBackToBBCode() {
         let html = """
         <p>Hello <strong>world</strong> and <a href="https://example.com">link</a>.</p>
@@ -609,6 +614,10 @@ struct ContentRenderingTests {
         #expect(String(scaled.characters).contains("Hello world"))
     }
 }
+
+
+
+
 
 
 
