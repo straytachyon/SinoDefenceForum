@@ -378,13 +378,19 @@ actor XFClient {
     func submitPost(
         form: PostFormInfo,
         title: String,
-        messageHTML: String
+        messageHTML: String,
+        messageBBCode: String? = nil
     ) async throws -> PostOutcome {
         var fields = form.fields
-        // 2.3 reads message_html, while some themes and the no-JS fallback still
-        // look at the legacy message field. Send the same block HTML to both so
-        // a post never lands with an empty body.
-        fields["message"] = messageHTML
+        // XenForo 2.3 stores rich text in message_html, while the legacy
+        // message field is the BBCode/no-JS fallback. Sending HTML to the
+        // legacy field makes the forum display literal <p>/<strong> tags, so
+        // each field gets its own representation.
+        if let messageBBCode {
+            fields["message"] = messageBBCode
+        } else {
+            fields.removeValue(forKey: "message")
+        }
         fields["message_html"] = messageHTML
         fields[form.messageField] = messageHTML
         fields["_xfToken"] = form.csrfToken ?? fields["_xfToken"] ?? ""

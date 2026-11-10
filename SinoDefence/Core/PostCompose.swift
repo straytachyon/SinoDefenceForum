@@ -260,7 +260,8 @@ final class PostComposer {
             let outcome = try await client.submitPost(
                 form: form,
                 title: subject.trimmingCharacters(in: .whitespacesAndNewlines),
-                messageHTML: html
+                messageHTML: html,
+                messageBBCode: message
             )
             errorMessage = nil
             return outcome

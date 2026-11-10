@@ -54,6 +54,12 @@ struct MainTabs: View {
                     Task { await refreshUnreadCount() }
                 }
             }
+            .onChange(of: selection) { _, newSelection in
+                if newSelection == .newPosts {
+                    NotificationCenter.default.post(name: .refreshNewPosts, object: nil)
+                    Task { await refreshUnreadCount() }
+                }
+            }
             .onChange(of: session.categories) { _, _ in
                 validateSelection()
             }

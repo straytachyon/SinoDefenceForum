@@ -39,7 +39,6 @@ struct TopicListContent: View {
     @State private var model = TopicListModel()
     @State private var showAlerts = false
     @State private var showCompose = false
-    @State private var hasAppeared = false
 
     var body: some View {
         Group {
@@ -125,10 +124,6 @@ struct TopicListContent: View {
             Task { await model.refresh(session: session) }
         }
         .onAppear {
-            guard hasAppeared else {
-                hasAppeared = true
-                return
-            }
             if case .newPosts = mode {
                 Task { await model.refresh(session: session) }
             }
