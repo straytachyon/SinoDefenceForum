@@ -16,13 +16,16 @@ struct PostHistorySheet: View {
                     ProgressView("Loading post history…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let errorMessage {
+                    let removed = errorMessage.localizedCaseInsensitiveContains("no longer stores")
                     ContentUnavailableView {
-                        Label("History Unavailable", systemImage: "clock.arrow.circlepath")
+                        Label(removed ? "History Removed" : "History Unavailable", systemImage: "clock.arrow.circlepath")
                     } description: {
                         Text(errorMessage)
                     } actions: {
-                        Button("Try Again") { Task { await load() } }
-                            .buttonStyle(.borderedProminent)
+                        if !removed {
+                            Button("Try Again") { Task { await load() } }
+                                .buttonStyle(.borderedProminent)
+                        }
                     }
                 } else {
                     List(entries) { entry in

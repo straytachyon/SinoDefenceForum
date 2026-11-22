@@ -367,6 +367,9 @@ actor XFClient {
             if let status = json["status"] as? String, status == "error" {
                 let errors = json["errors"] as? [String] ?? []
                 errorMessage = errors.first ?? "The post history could not be loaded."
+                if errorMessage?.localizedCaseInsensitiveContains("history has been removed") == true {
+                    errorMessage = "XenForo no longer stores edit history for this post."
+                }
             }
             if let html = json["html"] as? String {
                 historyHTML = html
