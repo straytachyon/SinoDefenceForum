@@ -21,6 +21,7 @@ struct PostCard: View {
     var onReact: ((ForumPost, Int) -> Void)?
 
     @State private var showReactionList = false
+    @State private var revealIgnored = false
 
     private var galleryURLs: [URL] {
         var urls: [URL] = []
@@ -34,6 +35,10 @@ struct PostCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
+            if post.isDeleted {
+                deletedBanner
+            }
+
             HStack(spacing: 10) {
                 avatar
 
@@ -106,69 +111,73 @@ struct PostCard: View {
                 }
             }
 
-            if !post.banners.isEmpty {
-                HStack(spacing: 5) {
-                    ForEach(post.banners, id: \.self) { banner in
-                        Text(banner)
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(AppTheme.accent)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(AppTheme.accent.opacity(0.11)))
+            if post.isIgnored && !revealIgnored {
+                ignoredNotice
+            } else {
+                if !post.banners.isEmpty {
+                    HStack(spacing: 5) {
+                        ForEach(post.banners, id: \.self) { banner in
+                            Text(banner)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(AppTheme.accent)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(AppTheme.accent.opacity(0.11)))
+                        }
                     }
                 }
-            }
 
-            if !post.content.blocks.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(Array(post.content.blocks.enumerated()), id: \.offset) { _, block in
-                        switch block {
-                        case .text(let text):
-                            Text(text.scaledForPostText(settings.postTextScale))
-                                .textSelection(.enabled)
-                                .tint(AppTheme.accent)
-                                .lineSpacing(2)
-                                .fixedSize(horizontal: false, vertical: true)
+                if !post.content.blocks.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(Array(post.content.blocks.enumerated()), id: \.offset) { _, block in
+                            switch block {
+                            case .text(let text):
+                                Text(text.scaledForPostText(settings.postTextScale))
+                                    .textSelection(.enabled)
+                                    .tint(AppTheme.accent)
+                                    .lineSpacing(2)
+                                    .fixedSize(horizontal: false, vertical: true)
 
-                        case .quote(let header, let text):
-                            QuoteBlockView(header: header, text: text)
+                            case .quote(let header, let text):
+                                QuoteBlockView(header: header, text: text)
 
-                        case .code(let code):
-                            CodeBlockView(code: code)
+                            case .code(let code):
+                                CodeBlockView(code: code)
 
-                        case .image(let url):
-                            InlinePostImage(url: url, gallery: galleryURLs)
+                            case .image(let url):
+                                InlinePostImage(url: url, gallery: galleryURLs)
 
-                        case .tweet(let id):
-                            TweetEmbedView(statusID: id)
+                            case .tweet(let id):
+                                TweetEmbedView(statusID: id)
 
-                        case .video(let id):
-                            VStack(alignment: .trailing, spacing: 4) {
-                                YouTubeEmbedView(videoID: id)
-                                    .aspectRatio(16.0 / 9.0, contentMode: .fit)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            case .video(let id):
+                                VStack(alignment: .trailing, spacing: 4) {
+                                    YouTubeEmbedView(videoID: id)
+                                        .aspectRatio(16.0 / 9.0, contentMode: .fit)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-                                Button {
-                                    if let watch = URL(string: "https://www.youtube.com/watch?v=\(id)") {
-                                        openURL(watch)
+                                    Button {
+                                        if let watch = URL(string: "https://www.youtube.com/watch?v=\(id)") {
+                                            openURL(watch)
+                                        }
+                                    } label: {
+                                        Label("Open on YouTube", systemImage: "arrow.up.right.square")
+                                            .font(.caption2)
                                     }
-                                } label: {
-                                    Label("Open on YouTube", systemImage: "arrow.up.right.square")
-                                        .font(.caption2)
+                                    .buttonStyle(.plain)
+                                    .foregroundStyle(AppTheme.secondaryText)
                                 }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(AppTheme.secondaryText)
                             }
                         }
                     }
                 }
-            }
 
-            if !post.content.images.isEmpty {
-                PostImageGrid(urls: post.content.images, gallery: galleryURLs)
-            }
+                if !post.content.images.isEmpty {
+                    PostImageGrid(urls: post.content.images, gallery: galleryURLs)
+                }
 
-            reactionBar
+                reactionBar
+            }
         }
         .textSelection(.enabled)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -262,6 +271,57 @@ struct PostCard: View {
 
     private var reactionChoices: [ReactionOption] {
         availableReactions.isEmpty ? ReactionOption.defaults : availableReactions
+    }
+
+    private var deletedBanner: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "trash")
+                .foregroundStyle(.red)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Deleted post")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.red)
+                if !post.deleteReason.isEmpty {
+                    Text("Reason: \(post.deleteReason)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(9)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color.red.opacity(0.08))
+        )
+    }
+
+    private var ignoredNotice: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 7) {
+                Image(systemName: "eye.slash")
+                    .foregroundStyle(AppTheme.secondaryText)
+                Text(post.ignoreNotice.isEmpty ? "You are ignoring posts by \(post.author)." : post.ignoreNotice)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { revealIgnored = true }
+            } label: {
+                Label("Show Post", systemImage: "chevron.down.circle")
+                    .font(.caption.weight(.medium))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(AppTheme.accent)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(.tertiarySystemFill).opacity(0.7))
+        )
     }
 
     private var avatar: some View {

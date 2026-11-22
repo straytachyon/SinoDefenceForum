@@ -332,6 +332,32 @@ struct TopicListParsingTests {
 // MARK: - Threads and posts
 
 struct ThreadParsingTests {
+    @Test func parsesDeletedAndIgnoredPosts() {
+        let html = """
+        <!DOCTYPE html><html id="XF" data-logged-in="true" data-csrf="1,abc"><body>
+        <h1 class="p-title-value">Moderated</h1>
+        <article class="message message--post is-deleted" data-content="post-1" data-author="Alice">
+          <div class="message-cell message-cell--main">
+            <div class="messageNotice messageNotice--deleted">Deleted by Moderator. Reason: Off topic</div>
+            <div class="message-body"><div class="bbWrapper"><p>Deleted text</p></div></div>
+          </div>
+        </article>
+        <article class="message message--post is-ignored" data-content="post-2" data-author="Bob">
+          <div class="message-cell message-cell--main">
+            <div class="messageNotice messageNotice--ignored">You are ignoring content by this member.</div>
+            <div class="message-body"><div class="bbWrapper"><p>Ignored text</p></div></div>
+          </div>
+        </article>
+        </body></html>
+        """
+        let page = XFParser.parseThread(html, topicID: 1)
+        #expect(page.posts.count == 2)
+        #expect(page.posts[0].isDeleted)
+        #expect(page.posts[0].deleteReason == "Off topic")
+        #expect(page.posts[1].isIgnored)
+        #expect(String(page.posts[1].content.text.characters).contains("Ignored text"))
+    }
+
     @Test func preservesNestedQuoteMetadata() {
         let html = """
         <blockquote data-quote="Alice" data-source="post: 42" data-attributes="member: 7">
@@ -652,6 +678,41 @@ struct ContentRenderingTests {
 
 
 
+
+
+
+
+
+
+
+
+struct LiveDeletedIgnoredProbe {
+    @Test func liveDeletedIgnoredProbe() async throws {
+        let paths = [
+            "t/casual-chat-room.9252/",
+            "t/trump-2-0-official-thread.9165/",
+            "t/miscellaneous-news.7090/",
+            "t/artificial-intelligence-thread.9058/",
+            "t/pla-small-arms.373/",
+        ]
+        for path in paths {
+            let url = AppConfig.url(path)
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let html = String(decoding: data, as: UTF8.self)
+            let deleted = html.components(separatedBy: "is-deleted").count - 1
+            let ignored = html.components(separatedBy: "is-ignored").count - 1
+            let notice = html.components(separatedBy: "messageNotice").count - 1
+            print("DELPROBE \(path) bytes=\(data.count) deleted=\(deleted) ignored=\(ignored) notice=\(notice)")
+            for marker in ["is-deleted", "is-ignored"] where html.contains(marker) {
+                if let range = html.range(of: marker) {
+                    let start = html.index(range.lowerBound, offsetBy: -300, limitedBy: html.startIndex) ?? html.startIndex
+                    let end = html.index(range.upperBound, offsetBy: 900, limitedBy: html.endIndex) ?? html.endIndex
+                    print("DELPROBE \(marker) snippet=\(html[start..<end].replacingOccurrences(of: "\n", with: " "))")
+                }
+            }
+        }
+    }
+}
 
 
 

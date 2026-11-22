@@ -478,6 +478,31 @@ enum XFParser {
             return href.contains("/posts/\(id)/edit")
         })?.href.flatMap { AppConfig.resolve($0) }
 
+        let noticeNode = article.firstClass("messageNotice")
+        let noticeText = noticeNode?.textContent ?? ""
+        let isDeleted = article.hasClass("is-deleted")
+            || article.hasClass("message--deleted")
+            || noticeNode?.hasClass("messageNotice--deleted") == true
+            || noticeText.localizedCaseInsensitiveContains("post has been deleted")
+            || noticeText.localizedCaseInsensitiveContains("deleted by")
+        let isIgnored = article.hasClass("is-ignored")
+            || article.hasClass("message--ignored")
+            || noticeNode?.hasClass("messageNotice--ignored") == true
+            || noticeText.localizedCaseInsensitiveContains("ignoring content")
+        var deleteReason = ""
+        if isDeleted {
+            if let range = noticeText.range(of: "Reason:", options: .caseInsensitive) {
+                deleteReason = String(noticeText[range.upperBound...])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if let range = noticeText.range(of: "reason:", options: .caseInsensitive) {
+                deleteReason = String(noticeText[range.upperBound...])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if let colon = noticeText.firstIndex(of: ":") {
+                deleteReason = String(noticeText[noticeText.index(after: colon)...])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
         return ForumPost(
             id: id,
             author: author,
@@ -497,7 +522,11 @@ enum XFParser {
             reactionCount: reactionState?.count ?? 0,
             myReactionID: reactionState?.myReactionID,
             canReact: reactionState?.canReact ?? false,
-            editURL: editURL
+            editURL: editURL,
+            isDeleted: isDeleted,
+            deleteReason: deleteReason,
+            isIgnored: isIgnored,
+            ignoreNotice: noticeText
         )
     }
 
