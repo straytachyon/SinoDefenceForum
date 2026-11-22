@@ -19,10 +19,13 @@ struct TabOrderEditor: View {
                 ForEach(boards) { board in
                     row(board)
                 }
+                .onMove { source, destination in
+                    boards.move(fromOffsets: source, toOffset: destination)
+                }
             } header: {
                 Text("Board tabs")
             } footer: {
-                Text("Use the arrows to move a board. “New posts” stays first; the first three boards appear as tabs and every board remains available in Forums. Changes are saved immediately.")
+                Text("Tap Edit and drag a board, or use the arrows. “New posts” stays first; the first three boards appear as tabs and every board remains available in Forums. Changes are saved immediately.")
             }
 
             Section {
@@ -37,6 +40,9 @@ struct TabOrderEditor: View {
         .navigationTitle("Arrange Tabs")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                EditButton()
+            }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") { dismiss() }
             }

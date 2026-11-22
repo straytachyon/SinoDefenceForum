@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import UIKit
 import WebKit
 
@@ -360,14 +361,72 @@ struct InlinePostImage: View {
             let urls = gallery.isEmpty ? [url] : gallery
             selection = GallerySelection(index: urls.firstIndex(of: url) ?? 0)
         }
-        .contextMenu {
-            Button("Copy Image", systemImage: "doc.on.doc") {
-                PostImageClipboard.copy(url)
-            }
-        }
+        .modifier(SaveImageModifier(url: url))
         .fullScreenCover(item: $selection) { selection in
             let urls = gallery.isEmpty ? [url] : gallery
             ImagePreview(urls: urls, startIndex: selection.index)
+        }
+    }
+}
+
+struct ImageFileDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.png] }
+
+    var data: Data
+
+    init(data: Data) { self.data = data }
+
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
+
+private struct ExportedImage: Identifiable {
+    let id = UUID()
+    let data: Data
+    let filename: String
+}
+
+struct SaveImageModifier: ViewModifier {
+    let url: URL
+
+    @State private var exported: ExportedImage?
+    @State private var isExporting = false
+
+    func body(content: Content) -> some View {
+        content
+            .contextMenu {
+                Button("Copy Image", systemImage: "doc.on.doc") {
+                    PostImageClipboard.copy(url)
+                }
+                Button("Save to Files", systemImage: "folder") {
+                    saveToFiles()
+                }
+            }
+            .fileExporter(
+                isPresented: $isExporting,
+                document: exported.map { ImageFileDocument(data: $0.data) },
+                contentType: .png,
+                defaultFilename: exported?.filename ?? "image"
+            ) { _ in
+                exported = nil
+            }
+    }
+
+    private func saveToFiles() {
+        Task {
+            guard let image = await RemoteImageLoader.load(url),
+                  let data = image.pngData() else { return }
+            let base = url.deletingPathExtension().lastPathComponent
+            let filename = base.isEmpty ? "image" : base
+            await MainActor.run {
+                exported = ExportedImage(data: data, filename: filename)
+                isExporting = true
+            }
         }
     }
 }
@@ -425,11 +484,7 @@ struct PostImageGrid: View {
                     .onTapGesture {
                         selection = GallerySelection(index: viewerURLs.firstIndex(of: url) ?? 0)
                     }
-                    .contextMenu {
-                        Button("Copy Image", systemImage: "doc.on.doc") {
-                            PostImageClipboard.copy(url)
-                        }
-                    }
+                    .modifier(SaveImageModifier(url: url))
             } else {
                 LazyVGrid(columns: columns, spacing: 8) {
                     ForEach(urls, id: \.absoluteString) { url in
@@ -458,6 +513,8 @@ struct ImagePreview: View {
     @State private var index: Int
     @State private var dragOffset: CGFloat = 0
     @State private var zoomed = false
+    @State private var exported: ExportedImage?
+    @State private var isExporting = false
     @Environment(\.dismiss) private var dismiss
 
     init(urls: [URL], startIndex: Int = 0) {
@@ -498,6 +555,28 @@ struct ImagePreview: View {
                     Spacer()
 
                     Button {
+                        copyCurrent()
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                            .font(.title3)
+                            .foregroundStyle(.white)
+                            .frame(width: 44, height: 44)
+                            .background(.black.opacity(0.35), in: Circle())
+                    }
+                    .accessibilityLabel("Copy image")
+
+                    Button {
+                        saveCurrent()
+                    } label: {
+                        Image(systemName: "folder")
+                            .font(.title3)
+                            .foregroundStyle(.white)
+                            .frame(width: 44, height: 44)
+                            .background(.black.opacity(0.35), in: Circle())
+                    }
+                    .accessibilityLabel("Save image to Files")
+
+                    Button {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
@@ -513,6 +592,33 @@ struct ImagePreview: View {
                 .padding(.top, 4)
 
                 Spacer()
+            }
+        }
+        .fileExporter(
+            isPresented: $isExporting,
+            document: exported.map { ImageFileDocument(data: $0.data) },
+            contentType: .png,
+            defaultFilename: exported?.filename ?? "image"
+        ) { _ in
+            exported = nil
+        }
+    }
+
+    private func copyCurrent() {
+        guard index < urls.count else { return }
+        PostImageClipboard.copy(urls[index])
+    }
+
+    private func saveCurrent() {
+        guard index < urls.count else { return }
+        let url = urls[index]
+        Task {
+            guard let image = await RemoteImageLoader.load(url),
+                  let data = image.pngData() else { return }
+            let base = url.deletingPathExtension().lastPathComponent
+            await MainActor.run {
+                exported = ExportedImage(data: data, filename: base.isEmpty ? "image" : base)
+                isExporting = true
             }
         }
     }

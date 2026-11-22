@@ -275,12 +275,20 @@ final class PostComposer {
     }
 
     private static func quoteDraft(for post: ForumPost) -> String {
-        var text = String(post.content.text.characters)
+        var content = HTMLToBBCode.convert(post.rawHTML)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        if text.count > 4_000 {
-            text = String(text.prefix(4_000)) + "…"
+        if content.isEmpty {
+            content = String(post.content.text.characters)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        text = text.replacingOccurrences(of: "[/quote]", with: "[/ quote]")
-        return "[quote=\"\(post.author)\"]\n\(text)\n[/quote]\n\n"
+
+        // XenForo's quote metadata is what turns the header into a link back
+        // to the quoted post. Keep it even when the quoted post itself contains
+        // nested quotes.
+        var attribution = "\(post.author), post: \(post.id)"
+        if let authorID = post.authorID {
+            attribution += ", member: \(authorID)"
+        }
+        return "[quote=\"\(attribution)\"]\n\(content)\n[/quote]\n\n"
     }
 }

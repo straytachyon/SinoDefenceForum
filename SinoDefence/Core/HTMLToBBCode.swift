@@ -57,7 +57,15 @@ enum HTMLToBBCode {
         case "blockquote":
             let author = node.attr("data-quote") ?? ""
             let content = node.firstClass("bbCodeBlock-content") ?? node
-            return "[quote=\"\(author)\"]\n\(renderChildren(content))\n[/quote]\n\n"
+            var attribution = author
+            if let source = node.attr("data-source"), let postID = Int(source.replacingOccurrences(of: "post:", with: "").trimmingCharacters(in: .whitespaces)) {
+                attribution += ", post: \(postID)"
+            }
+            if let attributes = node.attr("data-attributes"),
+               let memberID = Int(attributes.replacingOccurrences(of: "member:", with: "").trimmingCharacters(in: .whitespaces)) {
+                attribution += ", member: \(memberID)"
+            }
+            return "[quote=\"\(attribution)\"]\n\(renderChildren(content))\n[/quote]\n\n"
         case "iframe":
             if let src = node.attr("src"), let id = PostRenderer.youTubeID(from: URL(string: src) ?? URL(string: "https://youtube.com")!) {
                 return "[youtube]\(id)[/youtube]\n\n"

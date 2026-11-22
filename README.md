@@ -27,8 +27,8 @@ tokens stay between the app and the forum.
   endpoint, while read threads open at `/latest`, the newest post.
 - **Native thread rendering** — post headers, avatars, member titles, staff
   badges, quotes, code cards, inline images, lists, links and YouTube embeds.
-  Post text can be selected and copied; pictures have a **Copy Image** action
-  (and the full-screen viewer has a copy button).
+  Post text can be selected and copied; pictures have **Copy Image** and
+  **Save to Files** actions (the full-screen viewer has both buttons too).
   Posts show the reactions other members gave, with a full member-by-member
   reaction sheet. Signed-in members can add or change any enabled reaction.
   XenForo oEmbed and bare X/Twitter status links expand into native tweet cards
@@ -48,6 +48,9 @@ tokens stay between the app and the forum.
   YouTube, size, colour, alignment, spoiler, table, super/subscript and smileys)
   and converts the draft to the HTML that XenForo's editor accepts. A local
   preview renders the result through the same native post renderer.
+- **Quoting** — reply quotes preserve the original post's full formatted content,
+  nested quotation boxes and XenForo's post/member metadata so each quote links
+  back to its source post.
 - **Attachments** — attach photos from the Photos library or files from Files
   to new threads and replies. Uploads use XenForo's attachment manager/hash, show
   per-file progress and can be removed before posting (which deletes the uploaded
@@ -61,7 +64,8 @@ tokens stay between the app and the forum.
   from XenForo's own moderator controls before showing these actions; it does
   not guess from a user's title.
 - **Reorderable board tabs** — the ↑↓ button in the toolbar (or Settings →
-  Arrange Board Tabs) opens a list where boards move up/down. "New posts" stays
+  Arrange Board Tabs) opens a list where boards can be dragged into order or
+  moved with the arrows. "New posts" stays
   pinned first; the order is saved and restored on launch.
 - **Guest mode** — the login screen offers "Browse as a Guest". Guests can read
   New posts, forums and threads; posting and moderation ask for a sign-in.

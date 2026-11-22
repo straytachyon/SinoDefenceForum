@@ -125,9 +125,18 @@ enum BBCodeHTML {
         case "spoiler":
             return "<div class=\"bbCodeBlock bbCodeBlock--spoiler\"><div class=\"bbCodeBlock-title\">Spoiler</div><div class=\"bbCodeBlock-content\">\(inner)</div></div>"
         case "quote":
-            let author = tag.value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let title = author.isEmpty ? "Quote" : "\(escape(author)) said:"
-            return "<blockquote data-attributes=\"\" data-quote=\"\(escapeAttribute(author))\" class=\"bbCodeBlock bbCodeBlock--quote\"><div class=\"bbCodeBlock-title\">\(title)</div><div class=\"bbCodeBlock-content\">\(inner)</div></blockquote>"
+            let raw = tag.value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let metadata = quoteMetadata(raw)
+            let title = metadata.author.isEmpty ? "Quote" : "\(escape(metadata.author)) said:"
+            let titleHTML: String
+            if let postID = metadata.postID {
+                titleHTML = "<a href=\"/goto/post?id=\(postID)\" class=\"bbCodeBlock-sourceJump\">\(title)</a>"
+            } else {
+                titleHTML = title
+            }
+            let source = metadata.postID.map { "post: \($0)" } ?? ""
+            let attributes = metadata.memberID.map { "member: \($0)" } ?? ""
+            return "<blockquote data-attributes=\"\(attributes)\" data-source=\"\(source)\" data-quote=\"\(escapeAttribute(metadata.author))\" class=\"bbCodeBlock bbCodeBlock--quote\"><div class=\"bbCodeBlock-title\">\(titleHTML)</div><div class=\"bbCodeBlock-content\">\(inner)</div></blockquote>"
         case "list":
             let ordered = tag.value?.lowercased() == "1" || tag.value?.lowercased() == "decimal"
             return ordered ? "<ol>\(inner)</ol>" : "<ul>\(inner)</ul>"
@@ -183,6 +192,30 @@ enum BBCodeHTML {
         ])
         guard allowed.contains(namePart) else { return nil }
         return Tag(name: namePart, value: value)
+    }
+
+    private struct QuoteMetadata {
+        var author: String
+        var postID: Int?
+        var memberID: Int?
+    }
+
+    private static func quoteMetadata(_ value: String) -> QuoteMetadata {
+        var author = value
+        var postID: Int?
+        var memberID: Int?
+        for marker in [", post:", ", member:"] {
+            if let range = author.range(of: marker, options: .caseInsensitive) {
+                author = String(author[..<range.lowerBound])
+            }
+        }
+        if let match = value.range(of: "post:\\s*(\\d+)", options: .regularExpression) {
+            postID = Int(value[match].replacingOccurrences(of: "post:", with: "").trimmingCharacters(in: .whitespaces))
+        }
+        if let match = value.range(of: "member:\\s*(\\d+)", options: .regularExpression) {
+            memberID = Int(value[match].replacingOccurrences(of: "member:", with: "").trimmingCharacters(in: .whitespaces))
+        }
+        return QuoteMetadata(author: author.trimmingCharacters(in: .whitespaces), postID: postID, memberID: memberID)
     }
 
     // MARK: - Escaping

@@ -332,6 +332,28 @@ struct TopicListParsingTests {
 // MARK: - Threads and posts
 
 struct ThreadParsingTests {
+    @Test func preservesNestedQuoteMetadata() {
+        let html = """
+        <blockquote data-quote="Alice" data-source="post: 42" data-attributes="member: 7">
+          <div class="bbCodeBlock-content">
+            <p>Outer quote</p>
+            <blockquote data-quote="Bob" data-source="post: 41" data-attributes="member: 8">
+              <div class="bbCodeBlock-content"><p>Inner quote</p></div>
+            </blockquote>
+            <div class="bbImageWrapper"><img src="https://example.com/a.jpg" class="bbImage"></div>
+          </div>
+        </blockquote>
+        """
+        let bbcode = HTMLToBBCode.convert(html)
+        #expect(bbcode.contains("[quote=\"Alice, post: 42, member: 7\"]"))
+        #expect(bbcode.contains("[quote=\"Bob, post: 41, member: 8\"]"))
+        #expect(bbcode.contains("[img]https://example.com/a.jpg[/img]"))
+
+        let roundTrip = BBCodeHTML.convert(bbcode)
+        #expect(roundTrip.contains("data-source=\"post: 42\""))
+        #expect(roundTrip.contains("/goto/post?id=42"))
+    }
+
     @Test func wrapsPlainTextInParagraphHTML() {
         #expect(BBCodeHTML.convert("hello world") == "<p>hello world</p>")
         #expect(BBCodeHTML.convert("[b]bold[/b]").contains("<p>"))
