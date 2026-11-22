@@ -332,6 +332,25 @@ struct TopicListParsingTests {
 // MARK: - Threads and posts
 
 struct ThreadParsingTests {
+    @Test func parsesPostHistoryEntries() {
+        let html = """
+        <ol>
+          <li class="block-row block-row--separated">
+            <time class="u-dt" data-date="Nov 20, 2026" data-time="10:00 AM">Nov 20</time>
+            <a href="/members/alice.1/" class="username">Alice</a>
+            <div class="messageHistory-item-reason">Reason: fixed typo</div>
+            <div class="messageHistory-content">Earlier revision text</div>
+          </li>
+        </ol>
+        """
+        let entries = XFParser.parsePostHistory(html)
+        #expect(entries.count == 1)
+        #expect(entries[0].editor == "Alice")
+        #expect(entries[0].dateText == "Nov 20, 2026 at 10:00 AM")
+        #expect(entries[0].reason.contains("fixed typo"))
+        #expect(entries[0].content.contains("Earlier revision"))
+    }
+
     @Test func parsesDeletedAndIgnoredPosts() {
         let html = """
         <!DOCTYPE html><html id="XF" data-logged-in="true" data-csrf="1,abc"><body>
@@ -686,33 +705,8 @@ struct ContentRenderingTests {
 
 
 
-struct LiveDeletedIgnoredProbe {
-    @Test func liveDeletedIgnoredProbe() async throws {
-        let paths = [
-            "t/casual-chat-room.9252/",
-            "t/trump-2-0-official-thread.9165/",
-            "t/miscellaneous-news.7090/",
-            "t/artificial-intelligence-thread.9058/",
-            "t/pla-small-arms.373/",
-        ]
-        for path in paths {
-            let url = AppConfig.url(path)
-            let (data, _) = try await URLSession.shared.data(from: url)
-            let html = String(decoding: data, as: UTF8.self)
-            let deleted = html.components(separatedBy: "is-deleted").count - 1
-            let ignored = html.components(separatedBy: "is-ignored").count - 1
-            let notice = html.components(separatedBy: "messageNotice").count - 1
-            print("DELPROBE \(path) bytes=\(data.count) deleted=\(deleted) ignored=\(ignored) notice=\(notice)")
-            for marker in ["is-deleted", "is-ignored"] where html.contains(marker) {
-                if let range = html.range(of: marker) {
-                    let start = html.index(range.lowerBound, offsetBy: -300, limitedBy: html.startIndex) ?? html.startIndex
-                    let end = html.index(range.upperBound, offsetBy: 900, limitedBy: html.endIndex) ?? html.endIndex
-                    print("DELPROBE \(marker) snippet=\(html[start..<end].replacingOccurrences(of: "\n", with: " "))")
-                }
-            }
-        }
-    }
-}
+
+
 
 
 

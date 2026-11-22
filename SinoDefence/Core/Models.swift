@@ -206,6 +206,7 @@ struct ForumPost: Identifiable, Sendable {
     var deleteReason: String = ""
     var isIgnored: Bool = false
     var ignoreNotice: String = ""
+    var historyURL: URL? = nil
 
     var profileURL: URL? {
         guard let authorID, authorID > 0 else { return nil }
@@ -258,6 +259,14 @@ struct ReactionMember: Identifiable, Sendable {
     var avatarURL: URL?
     var reaction: ReactionOption
     var dateText: String
+}
+
+struct PostHistoryEntry: Identifiable, Sendable {
+    let id: String
+    var dateText: String
+    var editor: String
+    var reason: String
+    var content: String
 }
 
 struct ReactionResult: Sendable {

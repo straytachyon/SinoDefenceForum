@@ -57,9 +57,11 @@ tokens stay between the app and the forum.
   attachment server-side). Files are capped at 50 MB in the app.
 - **Editing** — posts expose Edit when XenForo itself provides an edit link for
   the signed-in account, with the existing BBCode editor and preview.
-- **Moderated and ignored posts** — moderators see deleted posts with a
-  **Deleted post** banner and the deletion reason. Posts from members you ignore
-  are collapsed to their heading with a **Show Post** control.
+- **Moderated and ignored posts** — moderators see deleted posts collapsed with
+  a **Deleted post** banner, the deletion reason and a **Show Post** control.
+  Moderators can also open a native **Post History** sheet from the post menu.
+  Posts from members you ignore are collapsed to their heading with a
+  **Show Post** control.
 - **Moderator tools** — when the signed-in account has moderator permission,
   thread pages expose Stick/Unstick, Lock/Unlock, Move and Delete actions, and every
   post gets a moderator menu with Delete Post, including an optional reason for

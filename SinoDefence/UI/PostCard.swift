@@ -19,9 +19,12 @@ struct PostCard: View {
     var onEdit: ((ForumPost) -> Void)?
     var availableReactions: [ReactionOption] = []
     var onReact: ((ForumPost, Int) -> Void)?
+    var historyToken: String? = nil
 
     @State private var showReactionList = false
     @State private var revealIgnored = false
+    @State private var revealDeleted = false
+    @State private var showHistory = false
 
     private var galleryURLs: [URL] {
         var urls: [URL] = []
@@ -88,6 +91,11 @@ struct PostCard: View {
                             }
                         }
                         if let onModerate {
+                            if post.historyURL != nil, historyToken != nil {
+                                Button("View History", systemImage: "clock.arrow.circlepath") {
+                                    showHistory = true
+                                }
+                            }
                             Button("Delete Post", systemImage: "trash", role: .destructive) {
                                 onModerate(post)
                             }
@@ -111,7 +119,9 @@ struct PostCard: View {
                 }
             }
 
-            if post.isIgnored && !revealIgnored {
+            if post.isDeleted && !revealDeleted {
+                EmptyView()
+            } else if post.isIgnored && !revealIgnored {
                 ignoredNotice
             } else {
                 if !post.banners.isEmpty {
@@ -190,6 +200,9 @@ struct PostCard: View {
         )
         .sheet(isPresented: $showReactionList) {
             ReactionListSheet(post: post)
+        }
+        .sheet(isPresented: $showHistory) {
+            PostHistorySheet(post: post, csrfToken: historyToken ?? "")
         }
     }
 
@@ -287,6 +300,14 @@ struct PostCard: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { revealDeleted.toggle() }
+                } label: {
+                    Label(revealDeleted ? "Hide Post" : "Show Post", systemImage: revealDeleted ? "chevron.up.circle" : "chevron.down.circle")
+                        .font(.caption.weight(.medium))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(AppTheme.accent)
             }
             Spacer(minLength: 0)
         }

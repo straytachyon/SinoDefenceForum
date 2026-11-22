@@ -33,6 +33,29 @@ struct TopicDetailView: View {
         AppConfig.url(AppConfig.threadPath(id: topic.id, slug: topic.slug))
     }
 
+    private func postCard(for post: ForumPost) -> some View {
+        PostCard(
+            post: post,
+            topicTitle: model.title,
+            leadingInset: landscapeInsets.left,
+            trailingInset: landscapeInsets.right,
+            onQuote: session.isSignedIn && !model.isLocked ? { quoted in
+                quotingPost = quoted
+            } : nil,
+            onModerate: post.canModerate ? { selected in
+                postToDelete = selected
+            } : nil,
+            onEdit: session.isSignedIn ? { selected in
+                editingPost = selected
+            } : nil,
+            availableReactions: model.availableReactions,
+            onReact: session.isSignedIn ? { selected, reactionID in
+                Task { await model.react(selected, reactionID: reactionID, session: session) }
+            } : nil,
+            historyToken: model.csrfToken
+        )
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -73,26 +96,8 @@ struct TopicDetailView: View {
                         .padding(.top, 40)
                     } else {
                         ForEach(model.posts) { post in
-                            PostCard(
-                                post: post,
-                                topicTitle: model.title,
-                                leadingInset: landscapeInsets.left,
-                                trailingInset: landscapeInsets.right,
-                                onQuote: session.isSignedIn && !model.isLocked ? { quoted in
-                                    quotingPost = quoted
-                                } : nil,
-                                onModerate: post.canModerate ? { selected in
-                                    postToDelete = selected
-                                } : nil,
-                                onEdit: session.isSignedIn ? { selected in
-                                    editingPost = selected
-                                } : nil,
-                                availableReactions: model.availableReactions,
-                                onReact: session.isSignedIn ? { selected, reactionID in
-                                    Task { await model.react(selected, reactionID: reactionID, session: session) }
-                                } : nil
-                            )
-                            .id(post.id)
+                            postCard(for: post)
+                                .id(post.id)
                         }
 
                         if model.isLoadingMore {

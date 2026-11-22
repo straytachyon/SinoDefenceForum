@@ -337,6 +337,60 @@ actor XFClient {
         return ResolvedThread(topic: topic, targetPostID: target)
     }
 
+    func fetchPostHistory(postID: Int, csrfToken: String) async throws -> [PostHistoryEntry] {
+        guard !csrfToken.isEmpty else { throw XFError.notLoggedIn }
+        guard let url = URL(string: "posts/\(postID)/history", relativeTo: baseURL)?.absoluteURL else {
+            throw XFError.postFailed("The history URL could not be built.")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
+        request.setValue(baseURL.absoluteString, forHTTPHeaderField: "Referer")
+        let fields = [
+            "_xfToken": csrfToken,
+            "_xfResponseType": "json",
+            "_xfWithData": "1",
+        ]
+        request.httpBody = Self.formEncode(fields).data(using: .utf8)
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw XFError.network("no HTTP response")
+        }
+        if http.statusCode == 403 { throw XFError.notLoggedIn }
+        let text = Self.decode(data, response: http)
+        var historyHTML: String?
+        var errorMessage: String?
+        if let json = Self.jsonObject(text) {
+            if let status = json["status"] as? String, status == "error" {
+                let errors = json["errors"] as? [String] ?? []
+                errorMessage = errors.first ?? "The post history could not be loaded."
+            }
+            if let html = json["html"] as? String {
+                historyHTML = html
+            } else if let html = json["html"] as? [String: Any] {
+                historyHTML = html["content"] as? String
+            }
+            if errorMessage == nil, historyHTML == nil {
+                errorMessage = json["errors"] as? [String] == nil
+                    ? "The post history is empty."
+                    : nil
+            }
+        } else {
+            historyHTML = text
+        }
+        if let errorMessage {
+            throw XFError.postFailed(errorMessage)
+        }
+        let entries = XFParser.parsePostHistory(historyHTML ?? text)
+        if entries.isEmpty {
+            throw XFError.postFailed("No edit history is available for this post.")
+        }
+        return entries
+    }
+
     func fetchQuote(postID: Int, csrfToken: String) async throws -> String {
         guard !csrfToken.isEmpty else { throw XFError.notLoggedIn }
         guard let url = URL(string: "posts/\(postID)/quote", relativeTo: baseURL)?.absoluteURL else {

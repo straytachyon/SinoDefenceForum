@@ -478,6 +478,11 @@ enum XFParser {
             return href.contains("/posts/\(id)/edit")
         })?.href.flatMap { AppConfig.resolve($0) }
 
+        let historyURL = article.allTags("a").first(where: {
+            let href = $0.href ?? ""
+            return href.contains("/posts/\(id)/history")
+        })?.href.flatMap { AppConfig.resolve($0) }
+
         let noticeNode = article.firstClass("messageNotice")
         let noticeText = noticeNode?.textContent ?? ""
         let isDeleted = article.hasClass("is-deleted")
@@ -526,7 +531,8 @@ enum XFParser {
             isDeleted: isDeleted,
             deleteReason: deleteReason,
             isIgnored: isIgnored,
-            ignoreNotice: noticeText
+            ignoreNotice: noticeText,
+            historyURL: historyURL
         )
     }
 
@@ -653,6 +659,48 @@ enum XFParser {
             ))
         }
         return members
+    }
+
+    static func parsePostHistory(_ html: String) -> [PostHistoryEntry] {
+        let document = HTMLParser.parse(html)
+        var entries: [PostHistoryEntry] = []
+        var rows = document.all(where: {
+            $0.tag == "li" && ($0.hasClass("block-row") || $0.hasClass("messageHistory-item"))
+        })
+        if rows.isEmpty {
+            rows = document.all(where: { $0.tag == "li" && $0.firstTag("time") != nil })
+        }
+        for (index, row) in rows.enumerated() {
+            guard let time = row.first(where: { $0.tag == "time" }) ?? row.all(where: { $0.hasClass("u-dt") }).first else { continue }
+            let editor = row.firstClass("messageHistory-item-user")?.textContent
+                ?? row.first(where: { $0.tag == "a" && $0.hasClass("username") })?.textContent
+                ?? row.firstClass("username")?.textContent
+                ?? ""
+            let text = row.textContent
+            var reason = ""
+            for marker in ["Reason:", "reason:"] {
+                if let range = text.range(of: marker) {
+                    reason = String(text[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                    break
+                }
+            }
+            let contentNode = row.firstClass("messageHistory-content")
+                ?? row.firstClass("messageHistory-item-content")
+                ?? row.firstClass("messageHistory-diff")
+                ?? row.firstClass("bbWrapper")
+            let content = contentNode?.textContent ?? ""
+            entries.append(PostHistoryEntry(
+                id: "\(index)-\(time.textContent)",
+                dateText: time.attr("data-date").map { date in
+                    if let clock = time.attr("data-time") { return "\(date) at \(clock)" }
+                    return date
+                } ?? time.textContent,
+                editor: editor,
+                reason: reason,
+                content: content
+            ))
+        }
+        return entries
     }
 
     // MARK: - Posting form
