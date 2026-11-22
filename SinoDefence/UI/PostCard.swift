@@ -298,9 +298,9 @@ struct PostCard: View {
     @ViewBuilder
     private var deletedExpandedContent: some View {
         if !post.content.isEmpty {
-            DeletedPostBody(content: post.content)
+            PostBlocksView(content: post.content)
         } else if let deletedContent {
-            DeletedPostBody(content: deletedContent)
+            PostBlocksView(content: deletedContent)
         } else if isLoadingDeletedContent {
             ProgressView("Loading deleted post…")
                 .frame(maxWidth: .infinity)
@@ -412,7 +412,7 @@ struct PostCard: View {
     }
 }
 
-private struct DeletedPostBody: View {
+struct PostBlocksView: View {
     let content: PostContent
     @Environment(AppSettings.self) private var settings
 

@@ -268,6 +268,7 @@ struct PostHistoryEntry: Identifiable, Sendable {
     var editor: String
     var reason: String
     var content: String
+    var revisionURL: URL?
 }
 
 struct ReactionResult: Sendable {

@@ -61,8 +61,9 @@ tokens stay between the app and the forum.
   a **Deleted post** banner, the deletion reason and a **Show Post** control that
   loads the deleted body through XenForo's moderator-only `/show` endpoint.
   Moderators can also open a native **Post History** sheet from the post menu;
-  edit-history pages are parsed as XenForo's data table, and the forum's own
-  error text is shown when history has been removed.
+  edit-history pages are parsed as XenForo's data table, each version opens its
+  rendered post content, and the forum's own error text is shown when history
+  has been removed.
   Posts from members you ignore are collapsed to their heading with a
   **Show Post** control.
 - **Moderator tools** — when the signed-in account has moderator permission,

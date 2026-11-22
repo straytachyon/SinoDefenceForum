@@ -8,6 +8,7 @@ struct PostHistorySheet: View {
     @State private var entries: [PostHistoryEntry] = []
     @State private var isLoading = true
     @State private var errorMessage: String?
+    @State private var selectedEntry: PostHistoryEntry?
 
     var body: some View {
         NavigationStack {
@@ -29,30 +30,35 @@ struct PostHistorySheet: View {
                     }
                 } else {
                     List(entries) { entry in
-                        VStack(alignment: .leading, spacing: 5) {
+                        Button {
+                            if entry.revisionURL != nil { selectedEntry = entry }
+                        } label: {
                             HStack {
-                                Text(entry.dateText)
-                                    .font(.subheadline.weight(.medium))
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(entry.dateText)
+                                        .font(.subheadline.weight(.medium))
+                                    if !entry.editor.isEmpty {
+                                        Text("Edited by \(entry.editor)")
+                                            .font(.caption)
+                                            .foregroundStyle(AppTheme.secondaryText)
+                                    }
+                                    if !entry.reason.isEmpty {
+                                        Text("Reason: \(entry.reason)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
                                 Spacer()
-                                if !entry.editor.isEmpty {
-                                    Text(entry.editor)
+                                if entry.revisionURL != nil {
+                                    Image(systemName: "chevron.right")
                                         .font(.caption)
-                                        .foregroundStyle(AppTheme.secondaryText)
+                                        .foregroundStyle(.tertiary)
                                 }
                             }
-                            if !entry.reason.isEmpty {
-                                Text("Reason: \(entry.reason)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            if !entry.content.isEmpty {
-                                Text(entry.content)
-                                    .font(.caption2)
-                                    .foregroundStyle(AppTheme.secondaryText)
-                                    .lineLimit(5)
-                            }
+                            .contentShape(Rectangle())
                         }
-                        .padding(.vertical, 3)
+                        .buttonStyle(.plain)
+                        .disabled(entry.revisionURL == nil)
                     }
                     .listStyle(.plain)
                 }
@@ -65,6 +71,9 @@ struct PostHistorySheet: View {
                 }
             }
             .task { await load() }
+            .sheet(item: $selectedEntry) { entry in
+                RevisionContentSheet(entry: entry, csrfToken: csrfToken)
+            }
         }
     }
 
@@ -76,6 +85,67 @@ struct PostHistorySheet: View {
                 postID: post.id,
                 csrfToken: csrfToken
             )
+            isLoading = false
+        } catch {
+            errorMessage = error.localizedDescription
+            isLoading = false
+        }
+    }
+}
+
+private struct RevisionContentSheet: View {
+    let entry: PostHistoryEntry
+    let csrfToken: String
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var content: PostContent?
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if isLoading {
+                    ProgressView("Loading version…")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let errorMessage {
+                    ContentUnavailableView {
+                        Label("Version Unavailable", systemImage: "doc.text")
+                    } description: {
+                        Text(errorMessage)
+                    }
+                } else if let content {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 10) {
+                            if !entry.editor.isEmpty {
+                                Text("Edited by \(entry.editor) · \(entry.dateText)")
+                                    .font(.caption)
+                                    .foregroundStyle(AppTheme.secondaryText)
+                            }
+                            PostBlocksView(content: content)
+                        }
+                        .padding(16)
+                    }
+                }
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("Version")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .task { await load() }
+        }
+    }
+
+    private func load() async {
+        guard let url = entry.revisionURL else { return }
+        isLoading = true
+        errorMessage = nil
+        do {
+            content = try await XFClient.shared.fetchHistoryRevision(url: url, csrfToken: csrfToken)
             isLoading = false
         } catch {
             errorMessage = error.localizedDescription

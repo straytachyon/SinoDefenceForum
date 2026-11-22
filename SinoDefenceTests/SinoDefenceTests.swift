@@ -372,6 +372,7 @@ struct ThreadParsingTests {
         #expect(tableEntries.count == 2)
         #expect(tableEntries[0].editor == "plawolf")
         #expect(tableEntries[0].dateText == "Nov 19, 2026 at 7:14 AM")
+        #expect(tableEntries[0].revisionURL?.path == "/edit-history/609533/view")
     }
 
     @Test func parsesDeletedAndIgnoredPosts() {
@@ -750,5 +751,27 @@ struct ContentRenderingTests {
 
 
 
+
+
+
+
+struct LiveRevisionViewProbe {
+    @Test func liveRevisionViewProbe() async throws {
+        let (threadData, _) = try await URLSession.shared.data(from: AppConfig.url("t/2026-israel-us-vs-iran-conflict-military-updates-news-only.9231/post-1364091"))
+        let token = XFParser.csrf(in: String(decoding: threadData, as: UTF8.self)) ?? ""
+        var components = URLComponents(url: AppConfig.url("edit-history/609533/view"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [
+            URLQueryItem(name: "_xfToken", value: token),
+            URLQueryItem(name: "_xfResponseType", value: "json"),
+            URLQueryItem(name: "_xfWithData", value: "1"),
+        ]
+        var req = URLRequest(url: components.url!)
+        req.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: req)
+        print("REVVIEW status=\((response as? HTTPURLResponse)?.statusCode ?? -1) len=\(data.count)")
+        print("REVVIEW body=\(String(decoding: data.prefix(6000), as: UTF8.self))")
+    }
+}
 
 

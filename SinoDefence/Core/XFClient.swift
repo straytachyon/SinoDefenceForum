@@ -337,6 +337,54 @@ actor XFClient {
         return ResolvedThread(topic: topic, targetPostID: target)
     }
 
+    func fetchHistoryRevision(url: URL, csrfToken: String) async throws -> PostContent {
+        guard !csrfToken.isEmpty else { throw XFError.notLoggedIn }
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            throw XFError.postFailed("The revision URL could not be built.")
+        }
+        var items = components.queryItems ?? []
+        items.append(contentsOf: [
+            URLQueryItem(name: "_xfToken", value: csrfToken),
+            URLQueryItem(name: "_xfResponseType", value: "json"),
+            URLQueryItem(name: "_xfWithData", value: "1"),
+        ])
+        components.queryItems = items
+        guard let requestURL = components.url else {
+            throw XFError.postFailed("The revision URL could not be built.")
+        }
+        var request = URLRequest(url: requestURL)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
+        request.setValue(baseURL.absoluteString, forHTTPHeaderField: "Referer")
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw XFError.network("no HTTP response") }
+        if http.statusCode == 403 { throw XFError.notLoggedIn }
+        let text = Self.decode(data, response: http)
+        guard let json = Self.jsonObject(text) else {
+            throw XFError.postFailed("The forum returned an unexpected revision response.")
+        }
+        if let status = json["status"] as? String, status == "error" {
+            let errors = json["errors"] as? [String] ?? []
+            throw XFError.postFailed(errors.first ?? "The revision could not be loaded.")
+        }
+        let contentHTML: String?
+        if let html = json["html"] as? String {
+            contentHTML = html
+        } else if let html = json["html"] as? [String: Any] {
+            contentHTML = html["content"] as? String
+        } else {
+            contentHTML = nil
+        }
+        let document = HTMLParser.parse(contentHTML ?? "")
+        let wrapper = document.firstClass("bbWrapper")
+        let html = wrapper?.innerHTML ?? ""
+        guard !html.isEmpty else {
+            throw XFError.postFailed("The revision had no readable content.")
+        }
+        return PostRenderer.render(html: html)
+    }
+
     func fetchDeletedPostContent(postID: Int, csrfToken: String) async throws -> String {
         guard !csrfToken.isEmpty else { throw XFError.notLoggedIn }
         guard var components = URLComponents(

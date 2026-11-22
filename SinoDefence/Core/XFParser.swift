@@ -710,6 +710,10 @@ enum XFParser {
                 ?? row.firstClass("messageHistory-diff")
                 ?? row.firstClass("bbWrapper")
             let content = contentNode?.textContent ?? ""
+            let revisionURL = row.allTags("a").first(where: {
+                let href = $0.href ?? ""
+                return href.contains("/edit-history/") && href.contains("/view")
+            })?.href.flatMap { AppConfig.resolve($0) }
             entries.append(PostHistoryEntry(
                 id: "\(index)-\(time.textContent)",
                 dateText: time.attr("data-date").map { date in
@@ -718,7 +722,8 @@ enum XFParser {
                 } ?? time.textContent,
                 editor: editor,
                 reason: reason,
-                content: content
+                content: content,
+                revisionURL: revisionURL
             ))
         }
         return entries
