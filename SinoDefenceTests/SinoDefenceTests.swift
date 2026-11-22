@@ -355,12 +355,12 @@ struct ThreadParsingTests {
         let html = """
         <!DOCTYPE html><html id="XF" data-logged-in="true" data-csrf="1,abc"><body>
         <h1 class="p-title-value">Moderated</h1>
-        <article class="message message--post is-deleted" data-content="post-1" data-author="Alice">
+        <div class="message message--deleted message--post js-post" data-content="post-1" data-author="Alice">
           <div class="message-cell message-cell--main">
-            <div class="messageNotice messageNotice--deleted">Deleted by Moderator. Reason: Off topic</div>
+            <div class="messageNotice messageNotice--deleted">Deleted by Moderator. Reason: Off topic Show…</div>
             <div class="message-body"><div class="bbWrapper"><p>Deleted text</p></div></div>
           </div>
-        </article>
+        </div>
         <article class="message message--post is-ignored" data-content="post-2" data-author="Bob">
           <div class="message-cell message-cell--main">
             <div class="messageNotice messageNotice--ignored">You are ignoring content by this member.</div>
@@ -681,6 +681,8 @@ struct ContentRenderingTests {
         #expect(String(scaled.characters).contains("Hello world"))
     }
 }
+
+
 
 
 

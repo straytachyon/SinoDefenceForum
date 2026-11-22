@@ -363,7 +363,9 @@ enum XFParser {
         let canModerate = parseIsModerator(in: document)
         var posts: [ForumPost] = []
         var seen = Set<Int>()
-        for article in document.all(where: { $0.tag == "article" && $0.hasClass("message--post") }) {
+        for article in document.all(where: {
+            ($0.tag == "article" || $0.tag == "div") && $0.hasClass("message--post")
+        }) {
             guard let post = parsePost(article, canModerate: canModerate),
                   seen.insert(post.id).inserted else { continue }
             posts.append(post)
@@ -371,7 +373,9 @@ enum XFParser {
 
         // Some themes omit message--post but keep .js-post.
         if posts.isEmpty {
-            for article in document.all(where: { $0.tag == "article" && $0.hasClass("js-post") }) {
+            for article in document.all(where: {
+                ($0.tag == "article" || $0.tag == "div") && $0.hasClass("js-post")
+            }) {
                 guard let post = parsePost(article, canModerate: canModerate),
                       seen.insert(post.id).inserted else { continue }
                 posts.append(post)
@@ -505,6 +509,12 @@ enum XFParser {
             } else if let colon = noticeText.firstIndex(of: ":") {
                 deleteReason = String(noticeText[noticeText.index(after: colon)...])
                     .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            for suffix in ["Show…", "Show...", "Show more", "Click to expand..."] {
+                if let range = deleteReason.range(of: suffix, options: [.caseInsensitive, .backwards]) {
+                    deleteReason = String(deleteReason[..<range.lowerBound])
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                }
             }
         }
 

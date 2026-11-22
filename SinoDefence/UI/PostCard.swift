@@ -286,6 +286,10 @@ struct PostCard: View {
         availableReactions.isEmpty ? ReactionOption.defaults : availableReactions
     }
 
+    private var hasVisibleContent: Bool {
+        !post.content.blocks.isEmpty || !post.content.images.isEmpty
+    }
+
     private var deletedBanner: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "trash")
@@ -300,14 +304,16 @@ struct PostCard: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) { revealDeleted.toggle() }
-                } label: {
-                    Label(revealDeleted ? "Hide Post" : "Show Post", systemImage: revealDeleted ? "chevron.up.circle" : "chevron.down.circle")
-                        .font(.caption.weight(.medium))
+                if hasVisibleContent {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { revealDeleted.toggle() }
+                    } label: {
+                        Label(revealDeleted ? "Hide Post" : "Show Post", systemImage: revealDeleted ? "chevron.up.circle" : "chevron.down.circle")
+                            .font(.caption.weight(.medium))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(AppTheme.accent)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(AppTheme.accent)
             }
             Spacer(minLength: 0)
         }
