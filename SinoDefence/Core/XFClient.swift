@@ -337,6 +337,62 @@ actor XFClient {
         return ResolvedThread(topic: topic, targetPostID: target)
     }
 
+    func fetchDeletedPostContent(postID: Int, csrfToken: String) async throws -> String {
+        guard !csrfToken.isEmpty else { throw XFError.notLoggedIn }
+        guard var components = URLComponents(
+            url: URL(string: "posts/\(postID)/show", relativeTo: baseURL)?.absoluteURL ?? baseURL,
+            resolvingAgainstBaseURL: false
+        ) else {
+            throw XFError.postFailed("The deleted-post URL could not be built.")
+        }
+        components.queryItems = [
+            URLQueryItem(name: "_xfToken", value: csrfToken),
+            URLQueryItem(name: "_xfResponseType", value: "json"),
+            URLQueryItem(name: "_xfWithData", value: "1"),
+        ]
+        guard let url = components.url else { throw XFError.postFailed("The deleted-post URL could not be built.") }
+        var request = URLRequest(url: url)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
+        request.setValue(baseURL.absoluteString, forHTTPHeaderField: "Referer")
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw XFError.network("no HTTP response") }
+        if http.statusCode == 403 { throw XFError.notLoggedIn }
+        let text = Self.decode(data, response: http)
+        var contentHTML: String?
+        var errorMessage: String?
+        if let json = Self.jsonObject(text) {
+            if let status = json["status"] as? String, status == "error" {
+                let errors = json["errors"] as? [String] ?? []
+                errorMessage = errors.first ?? "The deleted post could not be loaded."
+            }
+            if let html = json["html"] as? String {
+                contentHTML = html
+            } else if let html = json["html"] as? [String: Any] {
+                contentHTML = html["content"] as? String
+            }
+        } else {
+            contentHTML = text
+        }
+        if let errorMessage { throw XFError.postFailed(errorMessage) }
+
+        let document = HTMLParser.parse(contentHTML ?? "")
+        let post = document.all(where: {
+            ($0.tag == "article" || $0.tag == "div") && $0.hasClass("message--post")
+                && ($0.attr("data-content") ?? "") == "post-\(postID)"
+        }).first ?? document.firstClass("message-content")
+        let body = post?.firstClass("message-body")
+            ?? post?.firstClass("message-content")
+            ?? post
+        let wrapper = body?.firstClass("bbWrapper") ?? body
+        let html = wrapper?.innerHTML ?? ""
+        guard !html.isEmpty else {
+            throw XFError.postFailed("The forum returned an empty deleted post.")
+        }
+        return html
+    }
+
     func fetchPostHistory(postID: Int, csrfToken: String) async throws -> [PostHistoryEntry] {
         guard !csrfToken.isEmpty else { throw XFError.notLoggedIn }
         guard let url = URL(string: "posts/\(postID)/history", relativeTo: baseURL)?.absoluteURL else {
@@ -367,9 +423,6 @@ actor XFClient {
             if let status = json["status"] as? String, status == "error" {
                 let errors = json["errors"] as? [String] ?? []
                 errorMessage = errors.first ?? "The post history could not be loaded."
-                if errorMessage?.localizedCaseInsensitiveContains("history has been removed") == true {
-                    errorMessage = "XenForo no longer stores edit history for this post."
-                }
             }
             if let html = json["html"] as? String {
                 historyHTML = html

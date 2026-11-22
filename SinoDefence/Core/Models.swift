@@ -207,6 +207,7 @@ struct ForumPost: Identifiable, Sendable {
     var isIgnored: Bool = false
     var ignoreNotice: String = ""
     var historyURL: URL? = nil
+    var showContentURL: URL? = nil
 
     var profileURL: URL? {
         guard let authorID, authorID > 0 else { return nil }

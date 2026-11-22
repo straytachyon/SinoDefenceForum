@@ -486,6 +486,10 @@ enum XFParser {
             let href = $0.href ?? ""
             return href.contains("/posts/\(id)/history")
         })?.href.flatMap { AppConfig.resolve($0) }
+        let showContentURL = article.allTags("a").first(where: {
+            let href = $0.href ?? ""
+            return href.contains("/posts/\(id)/show")
+        })?.href.flatMap { AppConfig.resolve($0) }
 
         let noticeNode = article.firstClass("messageNotice")
         let noticeText = noticeNode?.textContent ?? ""
@@ -542,7 +546,8 @@ enum XFParser {
             deleteReason: deleteReason,
             isIgnored: isIgnored,
             ignoreNotice: noticeText,
-            historyURL: historyURL
+            historyURL: historyURL,
+            showContentURL: showContentURL
         )
     }
 
@@ -679,6 +684,12 @@ enum XFParser {
         })
         if rows.isEmpty {
             rows = document.all(where: { $0.tag == "li" && $0.firstTag("time") != nil })
+        }
+        if rows.isEmpty {
+            // XenForo's standalone edit-history page is a dataList table.
+            rows = document.all(where: {
+                $0.tag == "tr" && $0.hasClass("dataList-row") && $0.firstTag("time") != nil
+            })
         }
         for (index, row) in rows.enumerated() {
             guard let time = row.first(where: { $0.tag == "time" }) ?? row.all(where: { $0.hasClass("u-dt") }).first else { continue }

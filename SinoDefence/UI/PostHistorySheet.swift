@@ -16,7 +16,7 @@ struct PostHistorySheet: View {
                     ProgressView("Loading post history…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let errorMessage {
-                    let removed = errorMessage.localizedCaseInsensitiveContains("no longer stores")
+                    let removed = errorMessage.localizedCaseInsensitiveContains("history has been removed")
                     ContentUnavailableView {
                         Label(removed ? "History Removed" : "History Unavailable", systemImage: "clock.arrow.circlepath")
                     } description: {

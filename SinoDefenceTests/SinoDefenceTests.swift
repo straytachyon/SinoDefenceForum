@@ -349,6 +349,29 @@ struct ThreadParsingTests {
         #expect(entries[0].dateText == "Nov 20, 2026 at 10:00 AM")
         #expect(entries[0].reason.contains("fixed typo"))
         #expect(entries[0].content.contains("Earlier revision"))
+
+        let tableHTML = """
+        <table class="dataList-table">
+          <tr class="dataList-row dataList-row--header"><th>Old</th><th>New</th></tr>
+          <tr class="dataList-row dataList-row--noHover"><td>Current version</td></tr>
+          <tr class="dataList-row dataList-row--noHover">
+            <td><input type="radio" name="old" value="609533"></td>
+            <td><time data-date="Nov 19, 2026" data-time="7:14 AM">Thursday</time></td>
+            <td><a href="/members/plawolf.3915/" class="username">plawolf</a></td>
+            <td><a href="/edit-history/609533/view">View</a></td>
+          </tr>
+          <tr class="dataList-row dataList-row--noHover">
+            <td><input type="radio" name="old" value="609532"></td>
+            <td><time data-date="Nov 19, 2026" data-time="7:11 AM">Thursday</time></td>
+            <td><a href="/members/plawolf.3915/" class="username">plawolf</a></td>
+            <td><a href="/edit-history/609532/view">View</a></td>
+          </tr>
+        </table>
+        """
+        let tableEntries = XFParser.parsePostHistory(tableHTML)
+        #expect(tableEntries.count == 2)
+        #expect(tableEntries[0].editor == "plawolf")
+        #expect(tableEntries[0].dateText == "Nov 19, 2026 at 7:14 AM")
     }
 
     @Test func parsesDeletedAndIgnoredPosts() {
@@ -358,6 +381,7 @@ struct ThreadParsingTests {
         <div class="message message--deleted message--post js-post" data-content="post-1" data-author="Alice">
           <div class="message-cell message-cell--main">
             <div class="messageNotice messageNotice--deleted">Deleted by Moderator. Reason: Off topic Show…</div>
+            <a class="u-jsOnly" href="/posts/1/show" data-xf-click="inserter">Show…</a>
             <div class="message-body"><div class="bbWrapper"><p>Deleted text</p></div></div>
           </div>
         </div>
@@ -373,6 +397,7 @@ struct ThreadParsingTests {
         #expect(page.posts.count == 2)
         #expect(page.posts[0].isDeleted)
         #expect(page.posts[0].deleteReason == "Off topic")
+        #expect(page.posts[0].showContentURL?.path == "/posts/1/show")
         #expect(page.posts[1].isIgnored)
         #expect(String(page.posts[1].content.text.characters).contains("Ignored text"))
     }
@@ -681,6 +706,14 @@ struct ContentRenderingTests {
         #expect(String(scaled.characters).contains("Hello world"))
     }
 }
+
+
+
+
+
+
+
+
 
 
 

@@ -25,6 +25,9 @@ struct PostCard: View {
     @State private var revealIgnored = false
     @State private var revealDeleted = false
     @State private var showHistory = false
+    @State private var deletedContent: PostContent?
+    @State private var isLoadingDeletedContent = false
+    @State private var deletedContentError: String?
 
     private var galleryURLs: [URL] {
         var urls: [URL] = []
@@ -119,8 +122,10 @@ struct PostCard: View {
                 }
             }
 
-            if post.isDeleted && !revealDeleted {
-                EmptyView()
+            if post.isDeleted {
+                if revealDeleted {
+                    deletedExpandedContent
+                }
             } else if post.isIgnored && !revealIgnored {
                 ignoredNotice
             } else {
@@ -287,7 +292,38 @@ struct PostCard: View {
     }
 
     private var hasVisibleContent: Bool {
-        !post.content.blocks.isEmpty || !post.content.images.isEmpty
+        !post.content.blocks.isEmpty || !post.content.images.isEmpty || post.showContentURL != nil
+    }
+
+    @ViewBuilder
+    private var deletedExpandedContent: some View {
+        if !post.content.isEmpty {
+            DeletedPostBody(content: post.content)
+        } else if let deletedContent {
+            DeletedPostBody(content: deletedContent)
+        } else if isLoadingDeletedContent {
+            ProgressView("Loading deleted post…")
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+        } else if let deletedContentError {
+            Text(deletedContentError)
+                .font(.caption)
+                .foregroundStyle(.red)
+        }
+    }
+
+    private func loadDeletedContent() async {
+        guard deletedContent == nil, !isLoadingDeletedContent,
+              let token = historyToken, !token.isEmpty else { return }
+        isLoadingDeletedContent = true
+        deletedContentError = nil
+        defer { isLoadingDeletedContent = false }
+        do {
+            let html = try await XFClient.shared.fetchDeletedPostContent(postID: post.id, csrfToken: token)
+            deletedContent = PostRenderer.render(html: html)
+        } catch {
+            deletedContentError = error.localizedDescription
+        }
     }
 
     private var deletedBanner: some View {
@@ -307,6 +343,9 @@ struct PostCard: View {
                 if hasVisibleContent {
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) { revealDeleted.toggle() }
+                        if revealDeleted {
+                            Task { await loadDeletedContent() }
+                        }
                     } label: {
                         Label(revealDeleted ? "Hide Post" : "Show Post", systemImage: revealDeleted ? "chevron.up.circle" : "chevron.down.circle")
                             .font(.caption.weight(.medium))
@@ -369,6 +408,40 @@ struct PostCard: View {
             Text(String(post.author.prefix(1)).uppercased())
                 .font(.caption.weight(.bold))
                 .foregroundStyle(AppTheme.accent)
+        }
+    }
+}
+
+private struct DeletedPostBody: View {
+    let content: PostContent
+    @Environment(AppSettings.self) private var settings
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(content.blocks.enumerated()), id: \.offset) { _, block in
+                switch block {
+                case .text(let text):
+                    Text(text.scaledForPostText(settings.postTextScale))
+                        .textSelection(.enabled)
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                case .quote(let header, let text):
+                    QuoteBlockView(header: header, text: text)
+                case .code(let code):
+                    CodeBlockView(code: code)
+                case .image(let url):
+                    InlinePostImage(url: url, gallery: content.images)
+                case .tweet(let id):
+                    TweetEmbedView(statusID: id)
+                case .video(let id):
+                    YouTubeEmbedView(videoID: id)
+                        .aspectRatio(16.0 / 9.0, contentMode: .fit)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+            }
+            if !content.images.isEmpty {
+                PostImageGrid(urls: content.images)
+            }
         }
     }
 }
