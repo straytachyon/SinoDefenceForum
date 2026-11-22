@@ -208,7 +208,12 @@ final class PostComposer {
             }
             if message.isEmpty {
                 if case .reply(_, let quote?) = mode {
-                    message = Self.quoteDraft(for: quote)
+                    if let token = loaded.csrfToken,
+                       let serverQuote = try? await client.fetchQuote(postID: quote.id, csrfToken: token) {
+                        message = serverQuote
+                    } else {
+                        message = Self.quoteDraft(for: quote)
+                    }
                 } else if case .edit(let post) = mode {
                     message = HTMLToBBCode.convert(post.rawHTML)
                 } else {

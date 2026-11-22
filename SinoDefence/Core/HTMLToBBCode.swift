@@ -16,6 +16,13 @@ enum HTMLToBBCode {
         node.children.map(render).joined()
     }
 
+    private static func renderQuoteChildren(_ node: HTMLNode) -> String {
+        node.children
+            .filter { !$0.hasClass("js-expandLink") && !$0.hasClass("bbCodeBlock-expandLink") }
+            .map(render)
+            .joined()
+    }
+
     private static func render(_ node: HTMLNode) -> String {
         if node.isText { return node.text }
 
@@ -65,7 +72,7 @@ enum HTMLToBBCode {
                let memberID = Int(attributes.replacingOccurrences(of: "member:", with: "").trimmingCharacters(in: .whitespaces)) {
                 attribution += ", member: \(memberID)"
             }
-            return "[quote=\"\(attribution)\"]\n\(renderChildren(content))\n[/quote]\n\n"
+            return "[quote=\"\(attribution)\"]\n\(renderQuoteChildren(content))\n[/quote]\n\n"
         case "iframe":
             if let src = node.attr("src"), let id = PostRenderer.youTubeID(from: URL(string: src) ?? URL(string: "https://youtube.com")!) {
                 return "[youtube]\(id)[/youtube]\n\n"

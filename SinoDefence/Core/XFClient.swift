@@ -337,6 +337,43 @@ actor XFClient {
         return ResolvedThread(topic: topic, targetPostID: target)
     }
 
+    func fetchQuote(postID: Int, csrfToken: String) async throws -> String {
+        guard !csrfToken.isEmpty else { throw XFError.notLoggedIn }
+        guard let url = URL(string: "posts/\(postID)/quote", relativeTo: baseURL)?.absoluteURL else {
+            throw XFError.postFailed("The quote URL could not be built.")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
+        request.setValue(baseURL.absoluteString, forHTTPHeaderField: "Referer")
+        let fields = [
+            "_xfToken": csrfToken,
+            "quoteHtml": "",
+            "_xfResponseType": "json",
+            "_xfWithData": "1",
+        ]
+        request.httpBody = Self.formEncode(fields).data(using: .utf8)
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw XFError.network("no HTTP response")
+        }
+        if http.statusCode == 403 { throw XFError.notLoggedIn }
+        guard let json = Self.jsonObject(Self.decode(data, response: http)) else {
+            throw XFError.postFailed("The forum did not return a quote.")
+        }
+        if let status = json["status"] as? String, status == "error" {
+            let errors = json["errors"] as? [String] ?? []
+            throw XFError.postFailed(errors.first ?? "The post could not be quoted.")
+        }
+        guard let quote = json["quote"] as? String, !quote.isEmpty else {
+            throw XFError.postFailed("The forum returned an empty quote.")
+        }
+        return quote
+    }
+
     func fetchEditForm(postID: Int) async throws -> PostFormInfo {
         let (html, _) = try await get(AppConfig.url("posts/\(postID)/edit"))
         if let message = XFParser.errorMessage(in: html) {
