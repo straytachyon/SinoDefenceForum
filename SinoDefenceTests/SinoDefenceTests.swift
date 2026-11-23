@@ -392,15 +392,28 @@ struct ThreadParsingTests {
             <div class="message-body"><div class="bbWrapper"><p>Ignored text</p></div></div>
           </div>
         </article>
+        <article class="message message--post" data-content="post-3" data-author="plawolf">
+          <div class="message-cell message-cell--main">
+            <div class="message-body"><div class="bbWrapper">
+              <blockquote class="bbCodeBlock bbCodeBlock--quote">
+                <div class="messageNotice messageNotice--nested messageNotice--ignored">You are ignoring content by this member.</div>
+                <div class="bbCodeBlock-content">Quoted ignored text</div>
+              </blockquote>
+              <p>Reply from plawolf</p>
+            </div></div>
+          </div>
+        </article>
         </body></html>
         """
         let page = XFParser.parseThread(html, topicID: 1)
-        #expect(page.posts.count == 2)
+        #expect(page.posts.count == 3)
         #expect(page.posts[0].isDeleted)
         #expect(page.posts[0].deleteReason == "Off topic")
         #expect(page.posts[0].showContentURL?.path == "/posts/1/show")
         #expect(page.posts[1].isIgnored)
         #expect(String(page.posts[1].content.text.characters).contains("Ignored text"))
+        #expect(!page.posts[2].isIgnored)
+        #expect(page.posts[2].author == "plawolf")
     }
 
     @Test func preservesNestedQuoteMetadata() {
@@ -773,5 +786,7 @@ struct LiveRevisionViewProbe {
         print("REVVIEW body=\(String(decoding: data.prefix(6000), as: UTF8.self))")
     }
 }
+
+
 
 

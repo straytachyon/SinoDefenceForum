@@ -491,7 +491,11 @@ enum XFParser {
             return href.contains("/posts/\(id)/show")
         })?.href.flatMap { AppConfig.resolve($0) }
 
-        let noticeNode = article.firstClass("messageNotice")
+        // Ignored/deleted notices can also appear inside quoted posts. Only the
+        // post-level notice may collapse or mark the whole article.
+        let noticeNode = article.all(where: {
+            $0.hasClass("messageNotice") && !$0.hasClass("messageNotice--nested")
+        }).first
         let noticeText = noticeNode?.textContent ?? ""
         let isDeleted = article.hasClass("is-deleted")
             || article.hasClass("message--deleted")
